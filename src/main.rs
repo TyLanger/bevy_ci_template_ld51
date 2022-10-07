@@ -6,10 +6,15 @@
 
 use bevy::prelude::*;
 
+mod hex;
+
+use crate::hex::HexPlugin;
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup)
+        .add_plugin(HexPlugin)
         .run();
 }
 
@@ -17,6 +22,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn_bundle(Camera2dBundle::default());
     commands.spawn_bundle(SpriteBundle {
         texture: asset_server.load("icon.png"),
+        transform: Transform {
+            translation: Vec3::new(500.0, 0.0, 0.0),
+            ..default()
+        },
         ..Default::default()
     });
 }
