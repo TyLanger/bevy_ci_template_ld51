@@ -1,21 +1,21 @@
 //use crate::GameState;
-use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
 use bevy::utils::Duration;
+use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
 pub struct HexPlugin;
 
 impl Plugin for HexPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<HexSpawnEvent>()
-        .add_startup_system(spawn_hexes_circle)
-        .add_system(spawn_hex)
-        .add_system(hex_intro);
-            // .add_system_set(SystemSet::on_enter(GameState::Playing).with_system(spawn_hexes_circle))
-            // .add_system_set(SystemSet::on_update(GameState::Playing).with_system(spawn_hex));
+            .add_startup_system(spawn_hexes_circle)
+            .add_system(spawn_hex)
+            .add_system(hex_intro);
+        // .add_system_set(SystemSet::on_enter(GameState::Playing).with_system(spawn_hexes_circle))
+        // .add_system_set(SystemSet::on_update(GameState::Playing).with_system(spawn_hex));
     }
 }
 
 pub const DEG_TO_RAD: f32 = 0.01745;
-const HEX_SPACING: f32 = 0.86602540378;
+const HEX_SPACING: f32 = 0.866_025_4;
 const HEX_RADIUS: f32 = 20.0;
 const HEX_MARGIN: f32 = 0.4;
 
@@ -25,7 +25,7 @@ pub struct HexSpawnEvent {
 
 #[derive(Component)]
 pub struct Hex {
-    radius: f32,
+    //radius: f32,
     pub coords: HexCoords,
     // // gold available to be mined
     // pub gold: u32,
@@ -35,9 +35,9 @@ pub struct Hex {
 }
 
 impl Hex {
-    pub fn new(radius: f32, coords: HexCoords) -> Self {
+    pub fn new(coords: HexCoords) -> Self {
         Hex {
-            radius,
+            //radius,
             coords,
             // gold: 1,
             // max_gold: 3,
@@ -53,7 +53,7 @@ fn spawn_hexes_circle(mut ev_spawn: EventWriter<HexSpawnEvent>) {
     for i in 0..r {
         let ring = hex.get_ring(i);
         for h in ring.iter() {
-            ev_spawn.send(HexSpawnEvent { coords: h.clone() });
+            ev_spawn.send(HexSpawnEvent { coords: *h });
         }
     }
 }
@@ -76,50 +76,50 @@ fn spawn_hex(
 ) {
     for (i, ev) in ev_spawn.iter().enumerate() {
         //println!("HexSpawnEvent");
-        commands.spawn_bundle(MaterialMesh2dBundle {
-            mesh: meshes
-                .add(shape::RegularPolygon::new(HEX_RADIUS - HEX_MARGIN, 6).into())
-                .into(),
-            material: materials.add(ColorMaterial::from(Color::rgb(0.6, 0.2, 0.7))),
-            transform: Transform::from_translation(ev.coords.to_position().extend(0.0))
-                .with_rotation(Quat::from_rotation_z(30.0 * DEG_TO_RAD)),
-            ..default()
-        })
-        .insert(Hex::new(HEX_RADIUS, ev.coords))
-        .insert(HexMover {
-            start: ev.coords.to_position().extend(0.0) + Vec3::new(0.0, -100.0, 0.0),
-            target: ev.coords.to_position().extend(0.0),
-            timer: Timer::new(Duration::from_secs_f32(3.0 + 0.01 * i as f32), false),
-        });
+        commands
+            .spawn_bundle(MaterialMesh2dBundle {
+                mesh: meshes
+                    .add(shape::RegularPolygon::new(HEX_RADIUS - HEX_MARGIN, 6).into())
+                    .into(),
+                material: materials.add(ColorMaterial::from(Color::rgb(0.6, 0.2, 0.7))),
+                transform: Transform::from_translation(ev.coords.to_position().extend(0.0))
+                    .with_rotation(Quat::from_rotation_z(30.0 * DEG_TO_RAD)),
+                ..default()
+            })
+            .insert(Hex::new(ev.coords))
+            .insert(HexMover {
+                start: ev.coords.to_position().extend(0.0) + Vec3::new(0.0, -100.0, 0.0),
+                target: ev.coords.to_position().extend(0.0),
+                timer: Timer::new(Duration::from_secs_f32(3.0 + 0.01 * i as f32), false),
+            });
     }
 }
 
 #[derive(Component)]
 struct HexMover {
-	start: Vec3,
-	target: Vec3,
-	timer: Timer,
+    start: Vec3,
+    target: Vec3,
+    timer: Timer,
 }
 
 fn hex_intro(
-	mut commands: Commands,
-	mut q_hexes: Query<(Entity, &mut Transform, &mut HexMover)>,
-	time: Res<Time>,
+    mut commands: Commands,
+    mut q_hexes: Query<(Entity, &mut Transform, &mut HexMover)>,
+    time: Res<Time>,
 ) {
-	for (e, mut t, mut h) in q_hexes.iter_mut() {
-		if h.timer.tick(time.delta()).just_finished() {
-			commands.entity(e).remove::<HexMover>();
-		}
-		// lerp to position
-		//t.translation = h.start * (1.0 - h.timer.percent()) + h.target * h.timer.percent();
+    for (e, mut t, mut h) in q_hexes.iter_mut() {
+        if h.timer.tick(time.delta()).just_finished() {
+            commands.entity(e).remove::<HexMover>();
+        }
+        // lerp to position
+        //t.translation = h.start * (1.0 - h.timer.percent()) + h.target * h.timer.percent();
         // fancy
         // let p = h.timer.percent() * h.timer.percent();
         // t.translation = h.start * (1.0 - p) + h.target * p;
         // out and back
         let ease = ease_out_back(h.timer.percent());
         t.translation = h.start * (1.0 - ease) + h.target * ease;
-
-	}
+    }
 }
 
 fn ease_out_back(t: f32) -> f32 {
@@ -269,10 +269,10 @@ impl HexCoords {
             }
         }
 
-        return output;
+        output
     }
 
-
+    #[allow(dead_code)]
     pub fn get_neighbours(self) -> Vec<HexCoords> {
         self.get_ring(1)
     }
