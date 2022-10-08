@@ -1,6 +1,9 @@
+use bevy::sprite::collide_aabb::collide;
 //use crate::GameState;
 use bevy::utils::Duration;
 use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
+
+use crate::MouseWorldPos;
 pub struct HexPlugin;
 
 impl Plugin for HexPlugin {
@@ -8,7 +11,10 @@ impl Plugin for HexPlugin {
         app.add_event::<HexSpawnEvent>()
             .add_startup_system(spawn_hexes_circle)
             .add_system(spawn_hex)
-            .add_system(hex_intro);
+            .add_system(hex_intro)
+            .add_system(highlight_selection.before(select_hex))
+            .add_system(select_hex)
+            .add_system(gather_gold);
         // .add_system_set(SystemSet::on_enter(GameState::Playing).with_system(spawn_hexes_circle))
         // .add_system_set(SystemSet::on_update(GameState::Playing).with_system(spawn_hex));
     }
@@ -25,23 +31,39 @@ pub struct HexSpawnEvent {
 
 #[derive(Component)]
 pub struct Hex {
-    //radius: f32,
+    radius: f32,
     pub coords: HexCoords,
-    // // gold available to be mined
-    // pub gold: u32,
-    // max_gold: u32,
-    // // when gold increments
-    // timer: Timer,
+    // gold available to be mined
+    pub gold: u32,
+    max_gold: u32,
+    // when gold increments
+    timer: Timer,
 }
 
 impl Hex {
-    pub fn new(coords: HexCoords) -> Self {
+    pub fn new(radius: f32, coords: HexCoords) -> Self {
         Hex {
-            //radius,
+            radius,
             coords,
-            // gold: 1,
-            // max_gold: 3,
-            // timer: Timer::from_seconds(7.5, true),
+            gold: 1,
+            max_gold: 3,
+            timer: Timer::from_seconds(7.5, true),
+        }
+    }
+
+    // pub fn mine(&mut self) -> bool {
+    //     if self.gold > 1 {
+    //         self.gold -= 1;
+    //         return true;
+    //     }
+    //     return false;
+    // }
+}
+
+fn gather_gold(mut q_hexes: Query<&mut Hex>, time: Res<Time>) {
+    for mut hex in q_hexes.iter_mut() {
+        if hex.timer.tick(time.delta()).just_finished() && hex.gold < hex.max_gold {
+            hex.gold += 1;
         }
     }
 }
@@ -86,7 +108,7 @@ fn spawn_hex(
                     .with_rotation(Quat::from_rotation_z(30.0 * DEG_TO_RAD)),
                 ..default()
             })
-            .insert(Hex::new(ev.coords))
+            .insert(Hex::new(HEX_RADIUS, ev.coords))
             .insert(HexMover {
                 start: ev.coords.to_position().extend(0.0) + Vec3::new(0.0, -100.0, 0.0),
                 target: ev.coords.to_position().extend(0.0),
@@ -128,6 +150,62 @@ fn ease_out_back(t: f32) -> f32 {
 
     1.0 + b * (t - 1.0).powi(3) + a * (t - 1.0).powi(2)
 }
+
+#[derive(Component)]
+pub struct Selection;
+
+fn highlight_selection(
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut q_hex: Query<(&mut Handle<ColorMaterial>, Option<&Selection>), With<Hex>>,
+) {
+    for (color_handle, select) in q_hex.iter_mut() {
+        if select.is_some() {
+            let mut color_mat = materials.get_mut(&color_handle).unwrap();
+            color_mat.color = Color::ANTIQUE_WHITE;
+
+        } else {
+            let mut color_mat = materials.get_mut(&color_handle).unwrap();
+            color_mat.color = Color::GREEN;
+        }
+    }
+}
+
+fn select_hex(
+    mut commands: Commands,
+    q_hex: Query<(Entity, &Transform, &Hex)>,
+    q_selection: Query<(Entity, &Transform, &Hex), With<Selection>>,
+    mouse: Res<MouseWorldPos>,
+) {
+    for (ent, trans, hex) in q_selection.iter() {
+        
+        if collide(
+            mouse.0.extend(0.0),
+            Vec2::new(0.1, 0.1),
+            trans.translation,
+            Vec2::new(1.6 * hex.radius, 1.8 * hex.radius),
+        ).is_some() {
+            return;
+        } else {
+            commands.entity(ent).remove::<Selection>();
+        }
+    }
+
+    for (ent, trans, hex) in q_hex.iter() {
+        // bounding box for hexes is close enough
+        // 1.6 so you don't select multiple.
+        if collide(
+            mouse.0.extend(0.0),
+            Vec2::new(0.1, 0.1),
+            trans.translation,
+            Vec2::new(1.6 * hex.radius, 1.6 * hex.radius),
+        ).is_some() {
+            commands.entity(ent).insert(Selection);
+            return;
+        }
+    }
+
+}
+
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct HexCoords {
