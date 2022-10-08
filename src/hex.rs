@@ -51,13 +51,13 @@ impl Hex {
         }
     }
 
-    // pub fn mine(&mut self) -> bool {
-    //     if self.gold > 1 {
-    //         self.gold -= 1;
-    //         return true;
-    //     }
-    //     return false;
-    // }
+    pub fn mine(&mut self) -> bool {
+        if self.gold > 1 {
+            self.gold -= 1;
+            return true;
+        }
+        false
+    }
 }
 
 fn gather_gold(mut q_hexes: Query<&mut Hex>, time: Res<Time>) {

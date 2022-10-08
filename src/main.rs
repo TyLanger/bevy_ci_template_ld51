@@ -4,34 +4,72 @@
 // Feel free to delete this line.
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
-use bevy::{prelude::*, render::camera::RenderTarget};
+use bevy::{
+    prelude::*,
+    render::camera::{RenderTarget, ScalingMode},
+};
 
+mod boids;
+mod enemies;
+mod gold;
 mod hex;
+mod palette;
+mod tower;
+mod tutorial;
 
 use crate::hex::HexPlugin;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_startup_system(setup)
+        .add_plugin(boids::BoidsPlugin)
+        .add_plugin(enemies::EnemyPlugin)
+        .add_plugin(gold::GoldPlugin)
         .add_plugin(HexPlugin)
+        .add_plugin(tower::TowerPlugin)
+        .add_plugin(tutorial::TutorialPlugin)
         .insert_resource(MouseWorldPos(Vec2::ONE * 10000.0))
+        .insert_resource(WindowDescriptor {
+            width: WIDTH,
+            height: HEIGHT,
+            title: "Gold Collex Hex Defense".to_string(),
+            canvas: Some("#bevy".to_owned()),
+            ..Default::default()
+        })
+        .add_event::<StartSpawningEnemiesEvent>()
+        .add_startup_system(setup)
         .add_system(update_mouse_position)
         .run();
 }
 
+pub const HEIGHT: f32 = 720.0;
+pub const WIDTH: f32 = 1280.0;
+
 struct MouseWorldPos(Vec2);
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(Camera2dBundle::default());
-    commands.spawn_bundle(SpriteBundle {
-        texture: asset_server.load("icon.png"),
-        transform: Transform {
-            translation: Vec3::new(500.0, 0.0, 0.0),
+pub struct StartSpawningEnemiesEvent;
+
+fn setup(mut commands: Commands) {
+    //commands.spawn_bundle(Camera2dBundle::default());
+    commands.spawn_bundle(Camera2dBundle {
+        projection: OrthographicProjection {
+            scaling_mode: ScalingMode::FixedVertical(720.),
             ..default()
         },
-        ..Default::default()
+        // default is 0.4 all
+        // camera_2d: Camera2d {
+        //     clear_color: ClearColorConfig::Custom(Color::rgb(0.278, 0.247, 0.202))
+        // },
+        ..default()
     });
+    // commands.spawn_bundle(SpriteBundle {
+    //     texture: asset_server.load("icon.png"),
+    //     transform: Transform {
+    //         translation: Vec3::new(500.0, 0.0, 0.0),
+    //         ..default()
+    //     },
+    //     ..Default::default()
+    // });
 }
 
 fn update_mouse_position(
