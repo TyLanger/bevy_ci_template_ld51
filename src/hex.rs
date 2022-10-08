@@ -162,7 +162,6 @@ fn highlight_selection(
         if select.is_some() {
             let mut color_mat = materials.get_mut(&color_handle).unwrap();
             color_mat.color = Color::ANTIQUE_WHITE;
-
         } else {
             let mut color_mat = materials.get_mut(&color_handle).unwrap();
             color_mat.color = Color::GREEN;
@@ -177,13 +176,14 @@ fn select_hex(
     mouse: Res<MouseWorldPos>,
 ) {
     for (ent, trans, hex) in q_selection.iter() {
-        
         if collide(
             mouse.0.extend(0.0),
             Vec2::new(0.1, 0.1),
             trans.translation,
             Vec2::new(1.6 * hex.radius, 1.8 * hex.radius),
-        ).is_some() {
+        )
+        .is_some()
+        {
             return;
         } else {
             commands.entity(ent).remove::<Selection>();
@@ -198,14 +198,14 @@ fn select_hex(
             Vec2::new(0.1, 0.1),
             trans.translation,
             Vec2::new(1.6 * hex.radius, 1.6 * hex.radius),
-        ).is_some() {
+        )
+        .is_some()
+        {
             commands.entity(ent).insert(Selection);
             return;
         }
     }
-
 }
-
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct HexCoords {
