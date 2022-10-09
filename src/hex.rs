@@ -69,7 +69,7 @@ fn gather_gold(mut q_hexes: Query<&mut Hex>, time: Res<Time>) {
 }
 
 fn spawn_hexes_circle(mut ev_spawn: EventWriter<HexSpawnEvent>) {
-    let r = 4;
+    let r = 9;
     let hex = HexCoords::new();
 
     for i in 0..r {
@@ -164,7 +164,7 @@ fn highlight_selection(
             color_mat.color = Color::ANTIQUE_WHITE;
         } else {
             let mut color_mat = materials.get_mut(&color_handle).unwrap();
-            color_mat.color = Color::GREEN;
+            color_mat.color = Color::DARK_GREEN;
         }
     }
 }

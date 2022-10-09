@@ -107,7 +107,7 @@ pub struct PileSpawnEvent {
 impl PileSpawnEvent {
     pub fn new(coords: HexCoords) -> Self {
         PileSpawnEvent {
-            coords: coords,
+            coords,
             starting_gold: 0,
         }
     }
@@ -131,28 +131,29 @@ fn store_gold(
     for (gold_ent, gold_trans, _gold) in q_gold.iter() {
         for (pile_trans, mut pile, hex) in q_pile.iter_mut() {
             let mut b_size = Vec2::new(20., 20.);
-            if let None = hex {
+            if hex.is_none() {
                 // boss
                 b_size = Vec2::new(80., 80.);
             }
 
-            if let Some(_) = collide(
+            if collide(
                 gold_trans.translation,
                 Vec2::new(8., 12.),
                 pile_trans.translation,
                 b_size,
-            ) {
-                if pile.count < pile.gold_cap {
-                    pile.count += 1;
-                    //println!("Plink! {:?}", pile.count);
-                    commands.entity(gold_ent).despawn_recursive();
-                    if pile.count == pile.gold_cap {
-                        //println!("Cap reached!");
-                        if let Some(hex) = hex {
-                            ev_cap.send(PileCapEvent { coords: hex.coords });
-                        } else {
-                            ev_boss_cap.send(BossCapEvent);
-                        }
+            )
+            .is_some()
+                && pile.count < pile.gold_cap
+            {
+                pile.count += 1;
+                //println!("Plink! {:?}", pile.count);
+                commands.entity(gold_ent).despawn_recursive();
+                if pile.count == pile.gold_cap {
+                    //println!("Cap reached!");
+                    if let Some(hex) = hex {
+                        ev_cap.send(PileCapEvent { coords: hex.coords });
+                    } else {
+                        ev_boss_cap.send(BossCapEvent);
                     }
                 }
             }
@@ -254,7 +255,7 @@ fn make_health_bar(mut commands: Commands, q_new: Query<(Entity, Option<&Boss>),
         let mut r = Quat::from_rotation_z(-30.0 * DEG_TO_RAD);
         let mut y = 0.0;
         let mut x = -8.0;
-        if let Some(_) = boss {
+        if boss.is_some() {
             r = Quat::default();
             y = -42.0;
             x = 0.0;

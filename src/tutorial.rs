@@ -57,7 +57,7 @@ fn button_system(
                 text.sections[0].value = "Press".to_string();
                 *color = PRESSED_BUTTOM.into();
                 println!("Button pressed");
-                if let Some(_) = start {
+                if start.is_some() {
                     ev_start.send(StartSpawningEnemiesEvent);
                     // don't let the player click through the menu
                 }

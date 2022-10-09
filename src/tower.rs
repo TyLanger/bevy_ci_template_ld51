@@ -109,14 +109,12 @@ fn tower_mouse_input(
     input: Res<Input<MouseButton>>,
     accept: Res<AcceptInput>,
 ) {
-    if accept.0 {
-        if input.just_pressed(MouseButton::Left) {
-            for hex in q_selection.iter() {
-                ev_place_preview.send(PlaceTowerPreviewEvent {
-                    //position: trans.translation,
-                    coords: hex.coords,
-                });
-            }
+    if accept.0 && input.just_pressed(MouseButton::Left) {
+        for hex in q_selection.iter() {
+            ev_place_preview.send(PlaceTowerPreviewEvent {
+                //position: trans.translation,
+                coords: hex.coords,
+            });
         }
     }
 }
@@ -241,10 +239,10 @@ fn remove_tower(
         for (ent, children, trans, hex, _opt_pile, opt_preview, opt_tower) in q_towers.iter() {
             if ev.coords == hex.coords {
                 let mut opt_count = 0;
-                if let Some(_) = opt_preview {
+                if opt_preview.is_some() {
                     opt_count += 1;
                 }
-                if let Some(_) = opt_tower {
+                if opt_tower.is_some() {
                     opt_count += 1;
                 }
                 if opt_count == 0 {
@@ -383,13 +381,7 @@ fn spawn_bullet(
                 texture: asset_server.load("sprites/Missile.png"),
                 sprite: Sprite {
                     // Flip the logo to the left
-                    flip_x: {
-                        if ev.dir.x > 0.0 {
-                            true
-                        } else {
-                            false
-                        }
-                    },
+                    flip_x: { ev.dir.x > 0.0 },
                     // And don't flip it upside-down ( the default )
                     flip_y: false,
                     ..default()
@@ -438,12 +430,14 @@ pub fn bullet_hit(
 ) {
     for (b_ent, b_trans) in q_bullet.iter() {
         for (e_ent, e_trans) in q_enemies.iter() {
-            if let Some(_) = collide(
+            if collide(
                 b_trans.translation,
                 Vec2::new(6., 6.),
                 e_trans.translation,
                 Vec2::new(15., 15.),
-            ) {
+            )
+            .is_some()
+            {
                 //println!("Blam!");
                 // Todo drop gold
                 commands.entity(e_ent).insert(Dead);

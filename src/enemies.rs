@@ -241,12 +241,14 @@ fn grab_gold(
                 // could've been an insert and Without<CarryingGold>
                 break;
             }
-            if let Some(_) = collide(
+            if collide(
                 gold_trans.translation,
                 Vec2::new(8., 12.),
                 e_trans.translation,
                 Vec2::new(15., 15.),
-            ) {
+            )
+            .is_some()
+            {
                 //println!("Grabbed a gold: ent: {:?}", ent);
                 enemy.has_gold = true;
                 commands.entity(ent).remove::<Gold>();
@@ -317,12 +319,10 @@ fn drop_gold_and_die(
 
 fn escape(mut commands: Commands, q_enemies: Query<(Entity, &Enemy, &Transform), Without<Dead>>) {
     for (ent, enemy, trans) in q_enemies.iter() {
-        if enemy.has_gold {
-            if trans.translation.distance(Vec3::ZERO) > 700.0 {
-                // escaped
-                println!("Escaped");
-                commands.entity(ent).despawn_recursive();
-            }
+        if enemy.has_gold && trans.translation.distance(Vec3::ZERO) > 700.0 {
+            // escaped
+            println!("Escaped");
+            commands.entity(ent).despawn_recursive();
         }
     }
 }

@@ -7,7 +7,7 @@ use bevy::prelude::*;
 #[allow(dead_code)]
 pub const YELLOW_WHITE: Color = Color::rgb(
     (0xfb as f32 / 0xff as f32) as f32,
-    (0xff as f32 / 0xff as f32) as f32,
+    0xff as f32,
     (0xce as f32 / 0xff as f32) as f32,
 );
 #[allow(dead_code)]
@@ -36,7 +36,7 @@ pub const LIME_GREEN: Color = Color::rgb(
 );
 #[allow(dead_code)]
 pub const PINK: Color = Color::rgb(
-    (0xff as f32 / 0xff as f32) as f32,
+    0xff as f32,
     (0x9c as f32 / 0xff as f32) as f32,
     (0xc9 as f32 / 0xff as f32) as f32,
 );
