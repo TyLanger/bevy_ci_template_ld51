@@ -24,7 +24,7 @@ impl Plugin for EnemyPlugin {
             .add_system(generate_enemies)
             .add_system(spawn_enemy)
             .add_system(move_enemies)
-            .add_system(move_shadow)
+            .add_system(move_shadow.after(move_enemies))
             .add_system(grab_gold.before(bullet_hit))
             .add_system(escape)
             .add_system(spawn_boss)

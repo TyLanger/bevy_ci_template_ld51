@@ -95,6 +95,7 @@ fn spawn_hex(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut ev_spawn: EventReader<HexSpawnEvent>,
+    asset_server: Res<AssetServer>,
 ) {
     for (i, ev) in ev_spawn.iter().enumerate() {
         //println!("HexSpawnEvent");
@@ -113,6 +114,23 @@ fn spawn_hex(
                 start: ev.coords.to_position().extend(0.0) + Vec3::new(0.0, -100.0, 0.0),
                 target: ev.coords.to_position().extend(0.0),
                 timer: Timer::new(Duration::from_secs_f32(3.0 + 0.01 * i as f32), false),
+            })
+            .with_children(|parent| {
+                parent.spawn_bundle(SpriteBundle {
+                    texture: asset_server.load("sprites/HexGrass.png"),
+                    transform: Transform {
+                        // spawn on top of the underlying hex
+                        translation: Vec3 {
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.01,
+                        },
+                        // undo the hex's rotation
+                        rotation: Quat::from_rotation_z(-30.0 * DEG_TO_RAD),
+                        ..default()
+                    },
+                    ..default()
+                });
             });
     }
 }
@@ -164,7 +182,7 @@ fn highlight_selection(
             color_mat.color = Color::ANTIQUE_WHITE;
         } else {
             let mut color_mat = materials.get_mut(&color_handle).unwrap();
-            color_mat.color = Color::DARK_GREEN;
+            color_mat.color = Color::rgb(0.15, 0.65, 0.16);
         }
     }
 }

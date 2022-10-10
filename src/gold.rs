@@ -149,8 +149,9 @@ fn store_gold(
                 //println!("Plink! {:?}", pile.count);
                 commands.entity(gold_ent).despawn_recursive();
                 if pile.count == pile.gold_cap {
-                    //println!("Cap reached!");
+                    //println!("Cap reached! {:?}", pile.count);
                     if let Some(hex) = hex {
+                        pile.count = 0; // empty the pile to pay for tower
                         ev_cap.send(PileCapEvent { coords: hex.coords });
                     } else {
                         ev_boss_cap.send(BossCapEvent);
@@ -168,6 +169,9 @@ fn setup(mut ev_spawn: EventWriter<PileSpawnEvent>) {
         starting_gold: 6,
     });
 }
+
+#[derive(Component)]
+struct PileSprite;
 
 fn spawn_pile(
     mut commands: Commands,
@@ -190,25 +194,27 @@ fn spawn_pile(
                             gold_cap: 500,
                         })
                         .with_children(|parent| {
-                            parent.spawn_bundle(SpriteBundle {
-                                sprite: Sprite {
-                                    color: ORANGE,
-                                    custom_size: Some(Vec2::new(20.0, 20.0)),
-                                    ..default()
-                                },
-                                transform: Transform {
-                                    // spawn on top of the underlying hex
-                                    translation: Vec3 {
-                                        x: 0.0,
-                                        y: 0.0,
-                                        z: 0.2,
+                            parent
+                                .spawn_bundle(SpriteBundle {
+                                    sprite: Sprite {
+                                        color: ORANGE,
+                                        custom_size: Some(Vec2::new(20.0, 20.0)),
+                                        ..default()
                                     },
-                                    // undo the hex's rotation
-                                    rotation: Quat::from_rotation_z(-30.0 * DEG_TO_RAD),
+                                    transform: Transform {
+                                        // spawn on top of the underlying hex
+                                        translation: Vec3 {
+                                            x: 0.0,
+                                            y: 0.0,
+                                            z: 0.2,
+                                        },
+                                        // undo the hex's rotation
+                                        rotation: Quat::from_rotation_z(-30.0 * DEG_TO_RAD),
+                                        ..default()
+                                    },
                                     ..default()
-                                },
-                                ..default()
-                            });
+                                })
+                                .insert(PileSprite);
                         });
                 }
             }
@@ -221,7 +227,7 @@ fn remove_pile(
     mut ev_remove: EventReader<PileRemoveEvent>,
     mut ev_spawn_gold: EventWriter<SpawnGoldEvent>,
     q_piles: Query<(Entity, &Children, &Transform, &Hex, &GoldPile)>,
-    //mut q_child: Query<&mut Sprite>,
+    q_child: Query<(Entity, &Parent, Option<&HealthBar>, Option<&PileSprite>)>,
 ) {
     for ev in ev_remove.iter() {
         for (ent, children, trans, hex, pile) in q_piles.iter() {
@@ -231,10 +237,24 @@ fn remove_pile(
                         position: trans.translation,
                     });
                 }
+                
                 for &child in children {
-                    //println!("despawning children");
-                    // runs once
-                    commands.entity(child).despawn_recursive();
+                    //println!("checking children");
+                    if let Ok(child_query) = q_child.get(child) {
+                        // println!("Found an hp bar");
+                        //let (c_ent, c_parent, c_bar) = child_query;
+                        if child_query.2.is_some() || child_query.3.is_some() {
+                            // delete if
+                            // health bar
+                            // or pile sprite
+                            // println!(
+                            //     "Deleting. hp bar: {:?}, pile sprite: {:?}",
+                            //     child_query.2.is_some(),
+                            //     child_query.3.is_some()
+                            // );
+                            commands.entity(child_query.0).despawn_recursive();
+                        }
+                    }
                 }
 
                 commands
@@ -248,7 +268,9 @@ fn remove_pile(
 }
 
 #[derive(Component)]
-struct HealthBar;
+struct HealthBar {
+    is_background: bool,
+}
 
 fn make_health_bar(mut commands: Commands, q_new: Query<(Entity, Option<&Boss>), Added<GoldPile>>) {
     for (ent, boss) in q_new.iter() {
@@ -279,7 +301,9 @@ fn make_health_bar(mut commands: Commands, q_new: Query<(Entity, Option<&Boss>),
                 },
                 ..default()
             })
-            .insert(HealthBar);
+            .insert(HealthBar {
+                is_background: false,
+            });
 
             hex.spawn_bundle(SpriteBundle {
                 sprite: Sprite {
@@ -297,6 +321,9 @@ fn make_health_bar(mut commands: Commands, q_new: Query<(Entity, Option<&Boss>),
                     ..default()
                 },
                 ..default()
+            })
+            .insert(HealthBar {
+                is_background: true,
             });
         });
     }
@@ -307,16 +334,18 @@ fn animate_health_bar(
     mut q_bar: Query<(Entity, &HealthBar, &Parent, &mut Sprite)>,
     q_piles: Query<&GoldPile>,
 ) {
-    for (ent, _bar, parent, mut sprite) in q_bar.iter_mut() {
-        let pile = q_piles.get(parent.get());
-        match pile {
-            Ok(p) => {
-                let x = p.count as f32 / p.gold_cap as f32;
-                sprite.custom_size = Some(Vec2::new(x * 25.0, 6.0));
-            }
-            Err(_) => {
-                //println!("Error. No pile");
-                commands.entity(ent).despawn_recursive();
+    for (ent, bar, parent, mut sprite) in q_bar.iter_mut() {
+        if !bar.is_background {
+            let pile = q_piles.get(parent.get());
+            match pile {
+                Ok(p) => {
+                    let x = p.count as f32 / p.gold_cap as f32;
+                    sprite.custom_size = Some(Vec2::new(x * 25.0, 6.0));
+                }
+                Err(_) => {
+                    //println!("Error. No pile");
+                    commands.entity(ent).despawn_recursive();
+                }
             }
         }
     }
