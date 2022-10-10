@@ -1,4 +1,3 @@
-use bevy::sprite::collide_aabb::collide;
 use bevy::utils::Duration;
 use bevy::{prelude::*, utils::FloatOrd};
 use rand::prelude::*;
@@ -25,7 +24,7 @@ impl Plugin for EnemyPlugin {
             .add_system(spawn_enemy)
             .add_system(move_enemies)
             .add_system(move_shadow.after(move_enemies))
-            .add_system(grab_gold.before(bullet_hit))
+            //.add_system(grab_gold.before(bullet_hit))
             .add_system(escape)
             .add_system(spawn_boss)
             // bullet_hit adds Dead. Run before it so it runs next frame
@@ -38,7 +37,7 @@ impl Plugin for EnemyPlugin {
 
 #[derive(Component)]
 pub struct Enemy {
-    has_gold: bool,
+    pub has_gold: bool,
 }
 
 impl Enemy {
@@ -61,8 +60,8 @@ pub struct Boss;
 pub struct BossSpawnEvent;
 pub struct BossCapEvent;
 
-struct SpawnEnemyEvent {
-    position: Vec3,
+pub struct SpawnEnemyEvent {
+    pub position: Vec3,
 }
 
 struct EnemySpawnInfo {
@@ -218,57 +217,6 @@ pub fn move_enemies(
         dir.z = 0.0;
 
         trans.translation += dir.normalize_or_zero() * 100. * time.delta_seconds();
-    }
-}
-
-// don't do it this way again
-// despawn the gold
-// add a sprite
-// die and spawn a gold on the corpse
-pub fn grab_gold(
-    mut commands: Commands,
-    mut q_enemies: Query<(Entity, &Transform, &mut Enemy), Without<Dead>>,
-    mut q_gold: Query<(Entity, &mut Transform), (Without<Enemy>, With<Gold>)>,
-) {
-    // when you grab the gold, run away
-    // directly away from 0,0 ?
-    // remove the gold?
-    // add something to the enemy so they don't pick up more gold?
-    for (ent, mut gold_trans) in q_gold.iter_mut() {
-        for (e_ent, e_trans, mut enemy) in q_enemies.iter_mut() {
-            if enemy.has_gold {
-                // don't pick up more gold
-                // could've been an insert and Without<CarryingGold>
-                break;
-            }
-            if collide(
-                gold_trans.translation,
-                Vec2::new(8., 12.),
-                e_trans.translation,
-                Vec2::new(15., 15.),
-            )
-            .is_some()
-            {
-                //println!("Grabbed a gold: ent: {:?}", ent);
-                enemy.has_gold = true;
-
-                commands.entity(ent).remove::<Gold>();
-
-                //println!("Add Child. e_ent: {:?}", e_ent);
-                // here
-                // so is the issue:
-                // commands get added
-                // then they get run at the end of frame
-                // if the order is wrong, delete happens before add_child
-                // so this needs to run before delete
-                // would events help?
-                // when hit, send an event to delete the enemy
-                // probably not
-                commands.entity(e_ent).add_child(ent);
-                gold_trans.translation = Vec3::new(0.0, 0.0, 0.1);
-                break;
-            }
-        }
     }
 }
 

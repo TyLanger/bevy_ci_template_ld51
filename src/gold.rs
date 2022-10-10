@@ -4,11 +4,11 @@ use bevy::sprite::Anchor;
 use bevy::utils::Duration;
 
 use crate::boids::Boid;
-use crate::enemies::{self, Boss, BossCapEvent};
+use crate::enemies::{Boss, BossCapEvent, Dead, Enemy, SpawnEnemyEvent};
 use crate::hex::{Hex, HexCoords, Selection, DEG_TO_RAD};
-use crate::palette::*;
 use crate::tower::{Tower, TowerPreview};
 use crate::MouseWorldPos;
+use crate::{palette::*, tower};
 
 const GOLD_SPAWN_TIME: f32 = 10.0;
 
@@ -36,7 +36,10 @@ impl Plugin for GoldPlugin {
             //.add_system(check_spawner)
             .add_system(move_gold)
             .add_system(check_mouse)
-            .add_system(store_gold.before(enemies::grab_gold))
+            //.add_system(store_gold.before(enemies::grab_gold))
+            // enemy.bullet_hit might break this. It was before enemy::grab
+            // so I'm putting it before this
+            .add_system(gold_collisions.before(tower::bullet_hit))
             .add_system(make_health_bar)
             .add_system(animate_health_bar);
     }
@@ -121,20 +124,27 @@ pub struct PileRemoveEvent {
     pub coords: HexCoords,
 }
 
-fn store_gold(
+fn gold_collisions(
     mut commands: Commands,
-    q_gold: Query<(Entity, &Transform, &Gold)>,
-    mut q_pile: Query<(&Transform, &mut GoldPile, Option<&Hex>)>,
+    mut q_gold: Query<(Entity, &mut Transform), (Without<Enemy>, With<Gold>)>,
+    mut q_pile: Query<(&Transform, &mut GoldPile, Option<&Hex>), Without<Gold>>,
+    mut q_enemies: Query<
+        (Entity, &Transform, &mut Enemy),
+        (Without<Gold>, Without<Dead>, Without<Boss>),
+    >,
     mut ev_cap: EventWriter<PileCapEvent>,
     mut ev_boss_cap: EventWriter<BossCapEvent>,
 ) {
-    for (gold_ent, gold_trans, _gold) in q_gold.iter() {
+    for (gold_ent, mut gold_trans) in q_gold.iter_mut() {
+        let mut gold_alive = true;
         for (pile_trans, mut pile, hex) in q_pile.iter_mut() {
-            let mut b_size = Vec2::new(20., 20.);
-            if hex.is_none() {
+            let b_size: Vec2 = if hex.is_none() {
                 // boss
-                b_size = Vec2::new(80., 80.);
-            }
+                Vec2::new(80., 80.)
+            } else {
+                // normal pile
+                Vec2::new(20., 20.)
+            };
 
             if collide(
                 gold_trans.translation,
@@ -146,7 +156,7 @@ fn store_gold(
                 && pile.count < pile.gold_cap
             {
                 pile.count += 1;
-                //println!("Plink! {:?}", pile.count);
+                //println!("Plink! {:?} e: {:?}", pile.count, gold_ent);
                 commands.entity(gold_ent).despawn_recursive();
                 if pile.count == pile.gold_cap {
                     //println!("Cap reached! {:?}", pile.count);
@@ -156,6 +166,43 @@ fn store_gold(
                     } else {
                         ev_boss_cap.send(BossCapEvent);
                     }
+                }
+                gold_alive = false;
+                break;
+            }
+        }
+        // has the gold already been deleted?
+        if gold_alive {
+            for (e_ent, e_trans, mut enemy) in q_enemies.iter_mut() {
+                // don't do it this way again
+                // despawn the gold
+                // add a sprite
+                // die and spawn a gold on the corpse
+
+                // when you grab the gold, run away
+                // directly away from 0,0 ?
+                // remove the gold?
+                // add something to the enemy so they don't pick up more gold?
+                if enemy.has_gold {
+                    // can't pick up multiple gold
+                    break;
+                }
+                if collide(
+                    gold_trans.translation,
+                    Vec2::new(8., 12.),
+                    e_trans.translation,
+                    Vec2::new(15., 15.),
+                )
+                .is_some()
+                {
+                    //println!("Grabbed a gold: ent: {:?}", gold_ent);
+                    enemy.has_gold = true;
+
+                    commands.entity(gold_ent).remove::<Gold>();
+
+                    commands.entity(e_ent).add_child(gold_ent);
+                    gold_trans.translation = Vec3::new(0.0, 0.0, 0.1);
+                    break;
                 }
             }
         }
@@ -356,6 +403,8 @@ fn pile_input(
     mut ev_spawn: EventWriter<PileSpawnEvent>,
     mut ev_remove: EventWriter<PileRemoveEvent>,
     q_selection: Query<(&Transform, &Hex), With<Selection>>,
+    mut ev_spawn_gold: EventWriter<SpawnGoldEvent>,
+    mut ev_spawn_enemy: EventWriter<SpawnEnemyEvent>,
 ) {
     for (_trans, hex) in q_selection.iter() {
         if input.just_pressed(KeyCode::X) {
@@ -363,6 +412,14 @@ fn pile_input(
         }
         if input.just_pressed(KeyCode::G) {
             ev_spawn.send(PileSpawnEvent::new(hex.coords));
+        }
+        if input.just_pressed(KeyCode::T) {
+            ev_spawn_gold.send(SpawnGoldEvent {
+                position: _trans.translation,
+            });
+            ev_spawn_enemy.send(SpawnEnemyEvent {
+                position: _trans.translation.truncate().extend(0.2),
+            });
         }
     }
 }
