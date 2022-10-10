@@ -160,27 +160,28 @@ fn spawn_tower_preview(
                         pile: GoldPile::new(cost.cost),
                     })
                     .with_children(|parent| {
-                        parent.spawn_bundle(SpriteBundle {
-                            texture: asset_server.load("sprites/UnbuiltTower.png"),
-                            // sprite: Sprite {
-                            //     color: LIGHT_BLUE,
-                            //     custom_size: Some(Vec2::new(20.0, 20.0)),
-                            //     ..default()
-                            // },
-                            transform: Transform {
-                                // spawn on top of the underlying hex
-                                translation: Vec3 {
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.2,
+                        parent
+                            .spawn_bundle(SpriteBundle {
+                                texture: asset_server.load("sprites/UnbuiltTower.png"),
+                                // sprite: Sprite {
+                                //     color: LIGHT_BLUE,
+                                //     custom_size: Some(Vec2::new(20.0, 20.0)),
+                                //     ..default()
+                                // },
+                                transform: Transform {
+                                    // spawn on top of the underlying hex
+                                    translation: Vec3 {
+                                        x: 0.0,
+                                        y: 0.0,
+                                        z: 0.2,
+                                    },
+                                    // undo the hex's rotation
+                                    rotation: Quat::from_rotation_z(-30.0 * DEG_TO_RAD),
+                                    ..default()
                                 },
-                                // undo the hex's rotation
-                                rotation: Quat::from_rotation_z(-30.0 * DEG_TO_RAD),
                                 ..default()
-                            },
-                            ..default()
-                        })
-                        .insert(TowerSprite);
+                            })
+                            .insert(TowerSprite);
                     });
 
                 // it is now a Hex, TowerPreview, GoldPile,
@@ -209,7 +210,7 @@ fn preview_paid_for(
                 // change the color of the preview to a tower color
                 for &child in children.iter() {
                     let sprite = q_child.get_mut(child);
-                    
+
                     // change the sprite of the preview tower sprite to the built tower
                     if let Ok(mut s) = sprite {
                         *s = asset_server.load("sprites/Tower.png");

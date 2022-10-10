@@ -225,7 +225,7 @@ pub fn move_enemies(
 // despawn the gold
 // add a sprite
 // die and spawn a gold on the corpse
-fn grab_gold(
+pub fn grab_gold(
     mut commands: Commands,
     mut q_enemies: Query<(Entity, &Transform, &mut Enemy), Without<Dead>>,
     mut q_gold: Query<(Entity, &mut Transform), (Without<Enemy>, With<Gold>)>,
@@ -251,6 +251,7 @@ fn grab_gold(
             {
                 //println!("Grabbed a gold: ent: {:?}", ent);
                 enemy.has_gold = true;
+
                 commands.entity(ent).remove::<Gold>();
 
                 //println!("Add Child. e_ent: {:?}", e_ent);

@@ -4,7 +4,7 @@ use bevy::sprite::Anchor;
 use bevy::utils::Duration;
 
 use crate::boids::Boid;
-use crate::enemies::{Boss, BossCapEvent};
+use crate::enemies::{self, Boss, BossCapEvent};
 use crate::hex::{Hex, HexCoords, Selection, DEG_TO_RAD};
 use crate::palette::*;
 use crate::tower::{Tower, TowerPreview};
@@ -36,7 +36,7 @@ impl Plugin for GoldPlugin {
             //.add_system(check_spawner)
             .add_system(move_gold)
             .add_system(check_mouse)
-            .add_system(store_gold)
+            .add_system(store_gold.before(enemies::grab_gold))
             .add_system(make_health_bar)
             .add_system(animate_health_bar);
     }
@@ -237,7 +237,7 @@ fn remove_pile(
                         position: trans.translation,
                     });
                 }
-                
+
                 for &child in children {
                     //println!("checking children");
                     if let Ok(child_query) = q_child.get(child) {
