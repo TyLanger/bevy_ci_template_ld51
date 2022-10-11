@@ -5,6 +5,7 @@
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
 use bevy::{
+    diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
     prelude::*,
     render::camera::{RenderTarget, ScalingMode},
 };
@@ -39,6 +40,18 @@ fn main() {
         .add_event::<StartSpawningEnemiesEvent>()
         .add_startup_system(setup)
         .add_system(update_mouse_position)
+        //.add_system(fps)
+        // // Adds frame time diagnostics
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_startup_system(infotext_system)
+        .add_system(change_text_system)
+        // // Adds a system that prints diagnostics to the console
+        // .add_plugin(LogDiagnosticsPlugin::default())
+        // // Any plugin can register diagnostics
+        // // Uncomment this to add an entity count diagnostics:
+        // .add_plugin(bevy::diagnostic::EntityCountDiagnosticsPlugin::default())
+        // // Uncomment this to add an asset count diagnostics:
+        // //.add_plugin(bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Texture>::default())
         .run();
 }
 
@@ -101,5 +114,49 @@ fn update_mouse_position(
         let world_pos: Vec2 = world_pos.truncate();
 
         mouse_pos.0 = world_pos;
+    }
+}
+
+#[derive(Component)]
+struct TextChanges;
+
+fn infotext_system(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let font = asset_server.load("fonts/FiraSans-Bold.ttf");
+    //commands.spawn_bundle(Camera2dBundle::default());
+
+    commands
+        .spawn_bundle(
+            TextBundle::from_sections([TextSection::from_style(TextStyle {
+                font,
+                font_size: 30.0,
+                color: Color::ORANGE_RED,
+            })])
+            .with_style(Style {
+                align_self: AlignSelf::FlexEnd,
+                position_type: PositionType::Absolute,
+                position: UiRect {
+                    bottom: Val::Px(5.0),
+                    right: Val::Px(15.0),
+                    ..default()
+                },
+                ..default()
+            }),
+        )
+        .insert(TextChanges);
+}
+
+fn change_text_system(
+    diagnostics: Res<Diagnostics>,
+    mut query: Query<&mut Text, With<TextChanges>>,
+) {
+    for mut text in &mut query {
+        let mut fps = 0.0;
+        if let Some(fps_diagnostic) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
+            if let Some(fps_avg) = fps_diagnostic.average() {
+                fps = fps_avg;
+            }
+        }
+
+        text.sections[0].value = format!("{:.0} fps", fps,);
     }
 }

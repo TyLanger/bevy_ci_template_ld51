@@ -113,7 +113,7 @@ fn spawn_hex(
             .insert(HexMover {
                 start: ev.coords.to_position().extend(0.0) + Vec3::new(0.0, -100.0, 0.0),
                 target: ev.coords.to_position().extend(0.0),
-                timer: Timer::new(Duration::from_secs_f32(3.0 + 0.01 * i as f32), false),
+                timer: Timer::new(Duration::from_secs_f32(2.0 + 0.01 * i as f32), false),
             })
             .with_children(|parent| {
                 parent.spawn_bundle(SpriteBundle {

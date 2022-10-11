@@ -127,7 +127,15 @@ pub struct PileRemoveEvent {
 fn gold_collisions(
     mut commands: Commands,
     mut q_gold: Query<(Entity, &mut Transform), (Without<Enemy>, With<Gold>)>,
-    mut q_pile: Query<(&Transform, &mut GoldPile, Option<&Hex>), Without<Gold>>,
+    mut q_pile: Query<
+        (
+            &Transform,
+            &mut GoldPile,
+            Option<&Hex>,
+            Option<&TowerPreview>,
+        ),
+        Without<Gold>,
+    >,
     mut q_enemies: Query<
         (Entity, &Transform, &mut Enemy),
         (Without<Gold>, Without<Dead>, Without<Boss>),
@@ -137,7 +145,7 @@ fn gold_collisions(
 ) {
     for (gold_ent, mut gold_trans) in q_gold.iter_mut() {
         let mut gold_alive = true;
-        for (pile_trans, mut pile, hex) in q_pile.iter_mut() {
+        for (pile_trans, mut pile, hex, preview) in q_pile.iter_mut() {
             let b_size: Vec2 = if hex.is_none() {
                 // boss
                 Vec2::new(80., 80.)
@@ -161,7 +169,9 @@ fn gold_collisions(
                 if pile.count == pile.gold_cap {
                     //println!("Cap reached! {:?}", pile.count);
                     if let Some(hex) = hex {
-                        pile.count = 0; // empty the pile to pay for tower
+                        if preview.is_some() {
+                            pile.count = 0; // empty the pile to pay for tower
+                        }
                         ev_cap.send(PileCapEvent { coords: hex.coords });
                     } else {
                         ev_boss_cap.send(BossCapEvent);
