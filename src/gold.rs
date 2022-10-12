@@ -40,7 +40,10 @@ impl Plugin for GoldPlugin {
             // enemy.bullet_hit might break this. It was before enemy::grab
             // so I'm putting it before this
             .add_system(gold_collisions.before(tower::bullet_hit))
-            .add_system(make_health_bar)
+            // spawn a health bar before it gets destroyed
+            // if you are holding gold when you spawna tower, it gets built instantly
+            // and the health bar is removed before it is created
+            .add_system(make_health_bar.before(gold_collisions))
             .add_system(animate_health_bar);
     }
 }
@@ -118,6 +121,7 @@ impl PileSpawnEvent {
 
 pub struct PileCapEvent {
     pub coords: HexCoords,
+    pub amount: u32,
 }
 
 pub struct PileRemoveEvent {
@@ -169,10 +173,14 @@ fn gold_collisions(
                 if pile.count == pile.gold_cap {
                     //println!("Cap reached! {:?}", pile.count);
                     if let Some(hex) = hex {
+                        ev_cap.send(PileCapEvent {
+                            coords: hex.coords,
+                            amount: pile.count,
+                        });
                         if preview.is_some() {
                             pile.count = 0; // empty the pile to pay for tower
+                            pile.gold_cap = 0; // don't accept any more
                         }
-                        ev_cap.send(PileCapEvent { coords: hex.coords });
                     } else {
                         ev_boss_cap.send(BossCapEvent);
                     }

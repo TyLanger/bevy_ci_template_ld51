@@ -10,6 +10,7 @@ impl Plugin for HexPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<HexSpawnEvent>()
             .add_startup_system(spawn_hexes_circle)
+            .add_system(spawn_ring_over_time)
             .add_system(spawn_hex)
             .add_system(hex_intro)
             .add_system(highlight_selection.before(select_hex))
@@ -69,7 +70,7 @@ fn gather_gold(mut q_hexes: Query<&mut Hex>, time: Res<Time>) {
 }
 
 fn spawn_hexes_circle(mut ev_spawn: EventWriter<HexSpawnEvent>) {
-    let r = 9;
+    let r = 4;
     let hex = HexCoords::new();
 
     for i in 0..r {
@@ -89,6 +90,53 @@ fn spawn_hexes_circle(mut ev_spawn: EventWriter<HexSpawnEvent>) {
 //         }
 //     }
 // }
+
+struct TimedHexSpawner {
+    timer: Timer,
+    radius: u32,
+    ring: Vec<HexCoords>,
+}
+
+impl Default for TimedHexSpawner {
+    fn default() -> Self {
+        TimedHexSpawner {
+            timer: Timer::from_seconds(3.0, true),
+            radius: 4,
+            ring: Vec::new(),
+        }
+    }
+}
+
+fn spawn_ring_over_time(
+    mut local: Local<TimedHexSpawner>,
+    time: Res<Time>,
+    mut ev_spawn: EventWriter<HexSpawnEvent>,
+) {
+    // don't grow forever
+    if local.radius > 10 {
+        return;
+    }
+
+    // it should build a whole side in 10s
+    // a ring should take a minute
+    // timer = 60 / len
+    if local.ring.is_empty() {
+        local.ring = HexCoords::new().get_ring(local.radius);
+        local.ring.reverse();
+        let len = local.ring.len();
+        if len > 0 {
+            local.timer = Timer::from_seconds(60.0 / len as f32, true);
+        }
+        local.radius += 1;
+    }
+
+    if local.timer.tick(time.delta()).just_finished() {
+        let h = local.ring.pop();
+        if let Some(h) = h {
+            ev_spawn.send(HexSpawnEvent { coords: h });
+        }
+    }
+}
 
 fn spawn_hex(
     mut commands: Commands,

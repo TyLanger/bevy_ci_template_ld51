@@ -203,7 +203,7 @@ fn preview_paid_for(
     mut ev_remove_pile: EventWriter<PileRemoveEvent>,
 ) {
     for ev in ev_pile_cap.iter() {
-        for (ent, children, hex, pile) in q_preview_towers.iter() {
+        for (ent, children, hex, _pile) in q_preview_towers.iter() {
             if ev.coords == hex.coords {
                 //println!("Upgrade {:?}", hex.coords);
 
@@ -222,7 +222,7 @@ fn preview_paid_for(
                     //.remove_children(children)
                     //.remove_bundle::<PreviewTowerBundle>()
                     .remove::<TowerPreview>()
-                    .insert(Tower::new(ev.coords, (pile.gold_cap as f32 * 0.8) as u32))
+                    .insert(Tower::new(ev.coords, (ev.amount as f32 * 0.8) as u32))
                     .insert(GoldSpawner::new());
 
                 if !tower_count.boss_spawned {
