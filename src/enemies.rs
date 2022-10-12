@@ -18,7 +18,7 @@ impl Plugin for EnemyPlugin {
         app.add_event::<SpawnEnemyEvent>()
             .add_event::<BossSpawnEvent>()
             .add_event::<BossCapEvent>()
-            .insert_resource(EnemySpawnInfo { group_size: 10 })
+            .insert_resource(EnemySpawnInfo { group_size: 5 })
             .add_system(setup)
             .add_system(generate_enemies)
             .add_system(spawn_enemy)

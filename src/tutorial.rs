@@ -7,12 +7,14 @@ pub struct TutorialPlugin;
 impl Plugin for TutorialPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(start_menu)
+            .add_startup_system(tutorial_side_bar)
             .add_event::<RemoveMenuEvent>()
             .insert_resource(AcceptInput(false))
             .add_system(button_system)
             .add_system(remove_start_menu)
             .add_system(allow_input)
-            .add_system(win_menu);
+            .add_system(win_menu)
+            .add_system(toggle_tutorial);
     }
 }
 
@@ -94,7 +96,7 @@ fn start_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                 align_items: AlignItems::Center,
                 ..default()
             },
-            color: Color::AZURE.into(),
+            color: Color::rgb(0.6, 0.6, 0.7).into(),
             ..default()
         })
         .insert(StartMenu)
@@ -260,5 +262,107 @@ fn win_menu(
                     });
                 });
             });
+    }
+}
+
+fn tutorial_side_bar(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let font = asset_server.load("fonts/FiraSans-Bold.ttf");
+    commands.spawn_bundle(
+        TextBundle::from_sections([
+            TextSection::new(
+                "Tutorial:\n",
+                TextStyle {
+                    font: font.clone(),
+                    font_size: 35.0,
+                    color: Color::WHITE,
+                },
+            ),
+            TextSection::new(
+                "\nLeft Click to place a tower preview.",
+                TextStyle {
+                    font: font.clone(),
+                    font_size: 25.0,
+                    color: Color::WHITE,
+                },
+            ),
+            TextSection::new(
+                "\nPress X on the orange square to destroy it.",
+                TextStyle {
+                    font: font.clone(),
+                    font_size: 25.0,
+                    color: Color::WHITE,
+                },
+            ),
+            TextSection::new(
+                "\nThe gold follows your mouse. Drag it over to the tower to pay for it and build it.",
+                TextStyle {
+                    font: font.clone(),
+                    font_size: 25.0,
+                    color: Color::WHITE,
+                },
+            ),
+            TextSection::new(
+                "\n\nA Tower mines the tiles around it for gold every 10s. Tiles only produce gold so fast so multiple towers mining the same tile has diminishing returns.",
+                TextStyle {
+                    font: font.clone(),
+                    font_size: 25.0,
+                    color: Color::WHITE,
+                },
+            ),
+            TextSection::new(
+                "\nPress G to spawn a Gold Pile to store gold for later.",
+                TextStyle {
+                    font: font.clone(),
+                    font_size: 25.0,
+                    color: Color::WHITE,
+                },
+            ),
+            TextSection::new(
+                "\nPress X to destroy something. You get back the gold in it. Fully built Towers only refund 80%.",
+                TextStyle {
+                    font: font.clone(),
+                    font_size: 25.0,
+                    color: Color::WHITE,
+                },
+            ),
+            TextSection::new(
+                "\n\nPress Tab to toggle this menu",
+                TextStyle {
+                    font,
+                    font_size: 25.0,
+                    color: Color::WHITE,
+                },
+            ),
+        ])
+        .with_text_alignment(TextAlignment::CENTER_LEFT)
+        .with_style(Style {
+            //align_self: AlignSelf::Center,
+            position_type: PositionType::Absolute,
+            position: UiRect {
+                top: Val::Px(5.0),
+                left: Val::Px(15.0),
+                ..default()
+            },
+            max_size: Size {
+                width: Val::Px(350.),
+                height: Val::Undefined,
+            },
+            ..default()
+        }),
+    )
+    .insert(Tutorial);
+}
+
+#[derive(Component)]
+struct Tutorial;
+
+fn toggle_tutorial(
+    input: Res<Input<KeyCode>>,
+    mut q_tutorial: Query<&mut Visibility, With<Tutorial>>,
+) {
+    if input.just_pressed(KeyCode::Tab) {
+        for mut vis in q_tutorial.iter_mut() {
+            vis.is_visible = !vis.is_visible;
+        }
     }
 }

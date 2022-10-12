@@ -231,7 +231,7 @@ fn setup(mut ev_spawn: EventWriter<PileSpawnEvent>) {
     // spawn a pile at the center with some starting cash
     ev_spawn.send(PileSpawnEvent {
         coords: HexCoords::new(),
-        starting_gold: 6,
+        starting_gold: 11,
     });
 }
 

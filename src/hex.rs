@@ -153,8 +153,10 @@ fn spawn_hex(
                     .add(shape::RegularPolygon::new(HEX_RADIUS - HEX_MARGIN, 6).into())
                     .into(),
                 material: materials.add(ColorMaterial::from(Color::rgb(0.6, 0.2, 0.7))),
-                transform: Transform::from_translation(ev.coords.to_position().extend(0.0))
-                    .with_rotation(Quat::from_rotation_z(30.0 * DEG_TO_RAD)),
+                transform: Transform::from_translation(
+                    ev.coords.to_position().extend(0.0) + Vec3::new(0.0, -100.0, 0.0),
+                )
+                .with_rotation(Quat::from_rotation_z(30.0 * DEG_TO_RAD)),
                 ..default()
             })
             .insert(Hex::new(HEX_RADIUS, ev.coords))

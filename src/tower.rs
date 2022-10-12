@@ -314,10 +314,10 @@ fn remove_tower(
                             counter.count -= 1;
                         }
                     }
-                    // likewise shouldn't need this check either
-                    if cost.cost > TOWER_COST_GROWTH {
-                        cost.cost -= TOWER_COST_GROWTH;
-                    }
+                }
+                // probably shouldn't need this check either
+                if cost.cost > TOWER_COST_GROWTH {
+                    cost.cost -= TOWER_COST_GROWTH;
                 }
             }
         }
