@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{enemies::BossCapEvent, StartSpawningEnemiesEvent};
+use crate::{enemies::BossCapEvent, hex::DEG_TO_RAD, StartSpawningEnemiesEvent};
 
 pub struct TutorialPlugin;
 
@@ -8,13 +8,18 @@ impl Plugin for TutorialPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(start_menu)
             .add_startup_system(tutorial_side_bar)
+            .add_startup_system(transition_setup)
             .add_event::<RemoveMenuEvent>()
+            .add_event::<TransitionEvent>()
             .insert_resource(AcceptInput(false))
             .add_system(button_system)
             .add_system(remove_start_menu)
             .add_system(allow_input)
             .add_system(win_menu)
-            .add_system(toggle_tutorial);
+            .add_system(toggle_tutorial)
+            .add_system(toggle_transition)
+            .add_system(start_transition)
+            .add_system(transition);
     }
 }
 
@@ -363,6 +368,126 @@ fn toggle_tutorial(
     if input.just_pressed(KeyCode::Tab) {
         for mut vis in q_tutorial.iter_mut() {
             vis.is_visible = !vis.is_visible;
+        }
+    }
+}
+
+struct TransitionEvent {
+    fade_in: bool,
+}
+
+fn toggle_transition(
+    input: Res<Input<KeyCode>>,
+    mut ev_transition: EventWriter<TransitionEvent>,
+    mut direction: Local<bool>,
+) {
+    if input.just_pressed(KeyCode::T) {
+        ev_transition.send(TransitionEvent {
+            fade_in: !*direction,
+        });
+        *direction = !*direction;
+    }
+}
+
+fn transition_setup(mut commands: Commands) {
+    commands
+        .spawn_bundle(ImageBundle {
+            style: Style {
+                size: Size::new(Val::Px(1280.0), Val::Px(720.0)),
+                position_type: PositionType::Absolute,
+                position: UiRect {
+                    top: Val::Px(0.0),
+                    left: Val::Px(0.0),
+                    ..default()
+                },
+                justify_content: JustifyContent::SpaceAround,
+                align_content: AlignContent::SpaceAround,
+                flex_wrap: FlexWrap::Wrap,
+                //align_content: AlignContent::Center,
+                //align_items: AlignItems::,
+                ..default()
+            },
+            focus_policy: bevy::ui::FocusPolicy::Pass,
+            color: Color::NONE.into(),
+            ..default()
+        })
+        .with_children(|root| {
+            for _ in 0..144 {
+                root.spawn_bundle(NodeBundle {
+                    style: Style {
+                        //size: Size::new(Val::Percent(9.5), Val::Percent(10.0)),
+                        size: Size::new(Val::Px(80.0), Val::Px(80.0)),
+                        justify_content: JustifyContent::Center,
+                        //align_content: AlignContent::Center,
+                        align_items: AlignItems::Center,
+                        flex_direction: FlexDirection::Column,
+
+                        ..default()
+                    },
+                    focus_policy: bevy::ui::FocusPolicy::Pass,
+                    color: Color::BLACK.into(), //:BEIGE.into(),
+                    ..default()
+                })
+                .insert(TransitionElement {
+                    fade_in: false,
+                    t: 0.0,
+                });
+            }
+        });
+}
+
+#[derive(Component)]
+struct TransitionElement {
+    fade_in: bool,
+    t: f32,
+}
+
+fn transition(mut q_transition: Query<(&mut TransitionElement, &mut Transform)>, time: Res<Time>) {
+    for (mut element, mut transform) in q_transition.iter_mut() {
+        if element.fade_in {
+            element.t += time.delta_seconds();
+            if element.t > 1.0 {
+                element.t = 1.0;
+            }
+
+            transform.scale = Vec3::ONE * element.t;
+            transform.rotation = Quat::from_rotation_z(0.0) * (1.0 - element.t)
+                + Quat::from_rotation_z(DEG_TO_RAD * 180.0) * element.t;
+            // when rotation is 180, it acts weird.
+            // looks cool, but I don't know why
+            // 90 behaves like you'd expect
+            // it must just be with how multiplying and adding quats works.
+        } else {
+            element.t += time.delta_seconds();
+            if element.t > 1.0 {
+                element.t = 1.0;
+            }
+
+            transform.scale = Vec3::ONE * (1.0 - element.t);
+            transform.rotation = Quat::from_rotation_z(DEG_TO_RAD * 180.0) * (1.0 - element.t)
+                + Quat::IDENTITY * element.t;
+            //+ Quat::from_rotation_z(0.0) * element.t;
+            // identity is the same as rot_z(0). Still weird
+
+            // this is how to do a normal rotation
+            // smooth 180
+            // transform.rotation = Quat::lerp(
+            //     Quat::from_rotation_z(DEG_TO_RAD * 180.0),
+            //     Quat::IDENTITY,
+            //     element.t,
+            // );
+        }
+    }
+}
+
+fn start_transition(
+    mut ev_transition: EventReader<TransitionEvent>,
+    mut q_transition: Query<&mut TransitionElement>,
+) {
+    for ev in ev_transition.iter() {
+        for mut t in q_transition.iter_mut() {
+            t.fade_in = ev.fade_in;
+            t.t = 0.0;
         }
     }
 }

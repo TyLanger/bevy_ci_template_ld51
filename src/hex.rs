@@ -23,8 +23,8 @@ impl Plugin for HexPlugin {
 
 pub const DEG_TO_RAD: f32 = 0.01745;
 const HEX_SPACING: f32 = 0.866_025_4;
-const HEX_RADIUS: f32 = 20.0;
-const HEX_MARGIN: f32 = 0.4;
+const HEX_RADIUS: f32 = 27.0; // 20.0
+const HEX_MARGIN: f32 = 0.0; // 0.4
 
 pub struct HexSpawnEvent {
     coords: HexCoords,
@@ -167,7 +167,7 @@ fn spawn_hex(
             })
             .with_children(|parent| {
                 parent.spawn_bundle(SpriteBundle {
-                    texture: asset_server.load("sprites/HexGrass.png"),
+                    texture: asset_server.load("sprites/Hex_15_13.png"),
                     transform: Transform {
                         // spawn on top of the underlying hex
                         translation: Vec3 {
@@ -232,7 +232,7 @@ fn highlight_selection(
             color_mat.color = Color::ANTIQUE_WHITE;
         } else {
             let mut color_mat = materials.get_mut(&color_handle).unwrap();
-            color_mat.color = Color::rgb(0.15, 0.65, 0.16);
+            color_mat.color = Color::rgb(0.388, 0.78, 0.3);
         }
     }
 }
