@@ -1,8 +1,11 @@
 use bevy::sprite::collide_aabb::collide;
+use bevy::ui::FocusPolicy;
 //use crate::GameState;
 use bevy::utils::Duration;
 use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
 
+use crate::gold::GoldPile;
+use crate::tower::Tower;
 use crate::MouseWorldPos;
 pub struct HexPlugin;
 
@@ -15,7 +18,9 @@ impl Plugin for HexPlugin {
             .add_system(hex_intro)
             .add_system(highlight_selection.before(select_hex))
             .add_system(select_hex)
-            .add_system(gather_gold);
+            .add_system(gather_gold)
+            .add_system(info_panel)
+            .add_system(remove_old_panel);
         // .add_system_set(SystemSet::on_enter(GameState::Playing).with_system(spawn_hexes_circle))
         // .add_system_set(SystemSet::on_update(GameState::Playing).with_system(spawn_hex));
     }
@@ -217,6 +222,110 @@ fn ease_out_back(t: f32) -> f32 {
     let b = a + 1.0;
 
     1.0 + b * (t - 1.0).powi(3) + a * (t - 1.0).powi(2)
+}
+
+// right click to spawn at mouse pos?
+// or spawn at selection?
+// destroy when another hex becomes a selection?
+
+fn info_panel(
+    mut commands: Commands,
+    input: Res<Input<MouseButton>>,
+    window: Res<Windows>,
+    asset_server: Res<AssetServer>,
+    q_selection: Query<(Option<&Tower>, Option<&GoldPile>), With<Selection>>,
+) {
+    if input.just_pressed(MouseButton::Right) {
+        let win = window.get_primary().unwrap();
+        if let Some(screen_pos) = win.cursor_position() {
+            let font = asset_server.load("fonts/FiraSans-Bold.ttf");
+            let mut text = "This is a Hex";
+            for (tower, gold_pile) in q_selection.iter() {
+                if tower.is_some() {
+                    text = "This is a Tower";
+                } else if gold_pile.is_some() {
+                    text = "This is a Gold Pile";
+                }
+            }
+            commands
+                .spawn_bundle(NodeBundle {
+                    style: Style {
+                        position_type: PositionType::Absolute,
+                        position: UiRect {
+                            left: Val::Px(screen_pos.x),
+                            bottom: Val::Px(screen_pos.y),
+                            ..default()
+                        },
+                        size: Size::new(Val::Auto, Val::Auto),
+                        ..default()
+                    },
+                    color: Color::ORANGE.into(),
+                    focus_policy: FocusPolicy::Block,
+                    ..default()
+                })
+                .insert(InfoPanel)
+                .insert(Interaction::Hovered)
+                .with_children(|parent| {
+                    parent.spawn_bundle(TextBundle {
+                        text: Text::from_section(
+                            text,
+                            TextStyle {
+                                font,
+                                font_size: 15.0,
+                                color: Color::WHITE,
+                            },
+                        ),
+                        style: Style {
+                            margin: UiRect::new(
+                                Val::Px(3.0),
+                                Val::Px(3.0),
+                                Val::Px(2.0),
+                                Val::Px(2.0),
+                            ),
+                            ..default()
+                        },
+                        // don't need this.
+                        // the problem was using Added<Selection>
+                        // I was never clicking on the same frame
+                        //focus_policy: FocusPolicy::Pass,
+                        ..default()
+                    });
+                });
+        }
+    }
+}
+
+#[derive(Component)]
+struct InfoPanel;
+
+fn remove_old_panel(
+    mut commands: Commands,
+    q_selection: Query<(), With<Selection>>,
+    q_panels: Query<(Entity, &Interaction), With<InfoPanel>>,
+) {
+    // Add Interaction to the root node to have it track the mouse
+    // like a button would
+    // button is just a tag. Interaction does all the logic
+
+    // why do I need this?
+    // If I remove it, the panel deletes immediately.
+    if !q_selection.is_empty() {
+        for (ent, interaction) in q_panels.iter() {
+            match *interaction {
+                Interaction::Clicked => {
+                    println!("Clicked panel");
+                }
+                Interaction::Hovered => {
+                    // do nothing while hovered
+                }
+                Interaction::None => {
+                    // delete it now
+                    println!("Delete the panel");
+                    commands.entity(ent).despawn_recursive();
+                }
+            }
+        }
+    }
 }
 
 #[derive(Component)]
