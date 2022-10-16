@@ -5,6 +5,7 @@ use crate::{
     gold::*,
     hex::*,
     tutorial::AcceptInput,
+    MouseWorldPos,
 };
 
 const TOWER_COST_GROWTH: u32 = 2;
@@ -17,6 +18,7 @@ impl Plugin for TowerPlugin {
             .add_event::<TowerRemoveEvent>()
             .add_event::<PlaceTowerPreviewEvent>()
             .add_event::<SpawnBulletEvent>()
+            .add_event::<SpawnBombBulletEvent>()
             //.add_system(spawn_tower)
             //.add_system(tower_input)
             .insert_resource(TowerSpawnCost { cost: 5 })
@@ -33,7 +35,10 @@ impl Plugin for TowerPlugin {
             .add_system(spawn_bullet)
             .add_system(tick_bullet)
             .add_system(move_bullet)
-            .add_system(bullet_hit);
+            .add_system(bullet_hit)
+            .add_system(spawn_bomb_bullet)
+            .add_system(tick_bomb_bullet)
+            .add_system(bomb_test);
         //.add_system(rotate_sprite);
     }
 }
@@ -328,6 +333,7 @@ fn tower_shoot(
     mut q_towers: Query<(&Transform, &mut Tower)>,
     q_enemies: Query<(&Transform, &Enemy)>,
     mut ev_shoot: EventWriter<SpawnBulletEvent>,
+    mut ev_bomb: EventWriter<SpawnBombBulletEvent>,
     time: Res<Time>,
 ) {
     for (t_trans, mut t) in q_towers.iter_mut() {
@@ -351,6 +357,10 @@ fn tower_shoot(
                     ev_shoot.send(SpawnBulletEvent {
                         pos: t_trans.translation.truncate(),
                         dir: direction.truncate(),
+                    });
+                    ev_bomb.send(SpawnBombBulletEvent {
+                        start_pos: t_trans.translation.truncate(),
+                        target_dir: direction.truncate(),
                     });
                     t.can_shoot = false;
                 }
@@ -468,5 +478,139 @@ pub fn bullet_hit(
                 break;
             }
         }
+    }
+}
+
+#[derive(Component)]
+struct BombBullet {
+    start_pos: Vec3,
+    start_dir: Vec2,
+    end_dir: Vec2,
+    timer: Timer,
+}
+
+struct SpawnBombBulletEvent {
+    start_pos: Vec2,
+    target_dir: Vec2,
+}
+
+// struct ArcInfo {
+//     // Before spawn
+//     arc_scale: f32,
+//     arc_lerp_percent: f32,
+//     // Tick()
+//     start_lerp_type: EaseType,
+//     end_lerp_type: EaseType,
+//     combo_lerp_type: EaseType,
+// }
+
+// enum EaseType {
+//     Linear,
+//     InCubic,
+//     OutCubic
+// }
+
+fn spawn_bomb_bullet(
+    mut commands: Commands,
+    mut ev_spawn_bomb: EventReader<SpawnBombBulletEvent>,
+    asset_server: Res<AssetServer>,
+) {
+    for ev in ev_spawn_bomb.iter() {
+        // make an arc
+        let dir = ev.target_dir;
+        let mag = dir.length();
+        // *5.0 scales the length of the arc
+        // 0.7 is the angle. 0.5 would be split in half.
+        // bigger numbers make the arc bigger
+        let start_dir = dir.lerp(Vec2::Y * mag * 5.0, 0.7);
+        let end_dir = dir - start_dir;
+
+        // Levers
+        // that I can pull to edit this: defaults
+        // scale: 5.0
+        // lerp percent: 0.7
+        // tick() lerp function: linear
+        // t*t probably works if scale is lower than 5.0
+        // tick() lifetime: 1.0s
+        // 
+        // scale: 1.0
+        // start_lerp (out_cubic)
+
+        // println!(
+        //     "dir: {:?}, blend: {:?}, start_dir: {:?}, end_dir: {:?}",
+        //     dir, blend, start_dir, end_dir
+        // );
+
+        let start_pos = Vec3 {
+            x: ev.start_pos.x,
+            y: ev.start_pos.y,
+            z: 0.6,
+        };
+
+        commands
+            .spawn_bundle(SpriteBundle {
+                texture: asset_server.load("sprites/Gold1.png"),
+                sprite: Sprite {
+                    // Flip the logo to the left
+                    flip_x: { dir.x > 0.0 },
+                    // And don't flip it upside-down ( the default )
+                    flip_y: false,
+                    ..default()
+                },
+
+                transform: Transform {
+                    translation: start_pos,
+                    ..default()
+                },
+                ..default()
+            })
+            .insert(BombBullet {
+                start_pos,
+                start_dir,
+                end_dir,
+                timer: Timer::from_seconds(1.0, false),
+            });
+    }
+}
+
+fn tick_bomb_bullet(
+    mut commands: Commands,
+    mut q_bombs: Query<(Entity, &mut Transform, &mut BombBullet)>,
+    time: Res<Time>,
+) {
+    for (ent, mut trans, mut bomb) in q_bombs.iter_mut() {
+        if bomb.timer.tick(time.delta()).just_finished() {
+            // blow up
+            commands.entity(ent).despawn_recursive();
+        }
+
+        let t = bomb.timer.percent();
+        // grows early and then levels out
+        // opposite of x*x*x
+        //let out_cubic = 1.0 - (1.0 - t).powi(3);
+
+        let start_lerp = Vec2::lerp(Vec2::ZERO, bomb.start_dir, t);
+        let end_lerp = Vec2::lerp(Vec2::ZERO, bomb.end_dir, t);
+
+        //let t = t * t;
+        // 1 - Math.pow(1 - x, 3);
+        // x ^ y
+        //let t = 1.0 - (1.0 - t).powi(3);
+        let pos = Vec2::lerp(start_lerp, start_lerp + end_lerp, t);
+
+        trans.translation = bomb.start_pos + pos.extend(0.0);
+    }
+}
+
+fn bomb_test(
+    input: Res<Input<KeyCode>>,
+    mouse: Res<MouseWorldPos>,
+    mut ev_bomb: EventWriter<SpawnBombBulletEvent>,
+) {
+    if input.just_pressed(KeyCode::Space) {
+        ev_bomb.send(SpawnBombBulletEvent {
+            start_pos: Vec2::ZERO,
+            target_dir: mouse.0,
+        })
     }
 }
