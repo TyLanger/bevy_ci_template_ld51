@@ -79,6 +79,7 @@ struct TowerSprite;
 struct PlaceTowerPreviewEvent {
     //position: Vec3,
     coords: HexCoords,
+    is_bomb: bool,
 }
 
 // successfully build
@@ -128,6 +129,17 @@ fn tower_mouse_input(
             ev_place_preview.send(PlaceTowerPreviewEvent {
                 //position: trans.translation,
                 coords: hex.coords,
+                is_bomb: false,
+            });
+        }
+    }
+    // spawn a bomb tower
+    if accept.0 && input.just_pressed(MouseButton::Right) {
+        for hex in q_selection.iter() {
+            ev_place_preview.send(PlaceTowerPreviewEvent {
+                //position: trans.translation,
+                coords: hex.coords,
+                is_bomb: true,
             });
         }
     }
@@ -189,6 +201,9 @@ fn spawn_tower_preview(
                             .insert(TowerSprite);
                     });
 
+                if ev.is_bomb {
+                    commands.entity(ent).insert(BombTower);
+                }
                 // it is now a Hex, TowerPreview, GoldPile,
                 // with a sprite child
                 cost.cost += TOWER_COST_GROWTH;
@@ -258,6 +273,7 @@ fn remove_tower(
         Option<&GoldPile>,
         Option<&TowerPreview>,
         Option<&Tower>,
+        Option<&BombTower>,
     )>,
     q_sprite: Query<Entity, With<TowerSprite>>,
     mut counter: ResMut<TowerCount>,
@@ -265,7 +281,9 @@ fn remove_tower(
     //mut q_child: Query<&mut Sprite>,
 ) {
     for ev in ev_remove.iter() {
-        for (ent, children, trans, hex, _opt_pile, opt_preview, opt_tower) in q_towers.iter() {
+        for (ent, children, trans, hex, _opt_pile, opt_preview, opt_tower, opt_bomb) in
+            q_towers.iter()
+        {
             if ev.coords == hex.coords {
                 let mut opt_count = 0;
                 if opt_preview.is_some() {
@@ -303,6 +321,10 @@ fn remove_tower(
                     }
                 }
 
+                if opt_bomb.is_some() {
+                    commands.entity(ent).remove::<BombTower>();
+                }
+
                 if opt_preview.is_some() {
                     commands.entity(ent).remove::<TowerPreview>();
                 }
@@ -330,13 +352,13 @@ fn remove_tower(
 }
 
 fn tower_shoot(
-    mut q_towers: Query<(&Transform, &mut Tower)>,
+    mut q_towers: Query<(&Transform, &mut Tower, Option<&BombTower>)>,
     q_enemies: Query<(&Transform, &Enemy)>,
     mut ev_shoot: EventWriter<SpawnBulletEvent>,
     mut ev_bomb: EventWriter<SpawnBombBulletEvent>,
     time: Res<Time>,
 ) {
-    for (t_trans, mut t) in q_towers.iter_mut() {
+    for (t_trans, mut t, bomb) in q_towers.iter_mut() {
         if t.can_shoot {
             // can shoot
             // find a target
@@ -350,18 +372,49 @@ fn tower_shoot(
                 })
                 .map(|closest_target| closest_target.0.translation - t_trans.translation);
 
+            let pos = q_enemies
+                .iter()
+                .min_by_key(|target_transform| {
+                    FloatOrd(Vec3::distance_squared(
+                        target_transform.0.translation,
+                        t_trans.translation,
+                    ))
+                })
+                .map(|closest| {
+                    // dist travelled in 1s
+                    // bomb travels for 1s
+                    // 100 * 0.0167 * 60 = 100
+                    closest.0.translation.truncate() + closest.1.dir.normalize_or_zero() * 100.
+                });
+            
+            let pos_prediction = pos.unwrap_or(Vec2::ZERO);
+
+            // let mut pos_prediction = Vec2::ZERO;
+            // if let Some((close_t, close_e)) = pos {
+            //     // dist travelled in 1s
+            //     // bomb travels for 1s
+            //     // 100 * 0.0167 * 60 = 100
+            //     pos_prediction = close_t.translation.truncate() + close_e.dir.normalize_or_zero() * 100.;
+            // }
+
             if let Some(direction) = direction {
                 //println!("Shoot a bullet");
                 // only shoot if within range
                 if direction.length_squared() < (t.range * t.range) {
-                    ev_shoot.send(SpawnBulletEvent {
-                        pos: t_trans.translation.truncate(),
-                        dir: direction.truncate(),
-                    });
-                    ev_bomb.send(SpawnBombBulletEvent {
-                        start_pos: t_trans.translation.truncate(),
-                        target_dir: direction.truncate(),
-                    });
+                    if bomb.is_some() {
+                        ev_bomb.send(SpawnBombBulletEvent {
+                            start_pos: t_trans.translation.truncate(),
+                            target_dir: pos_prediction - t_trans.translation.truncate(),
+                        });
+                    } else {
+                        ev_shoot.send(SpawnBulletEvent {
+                            pos: t_trans.translation.truncate(),
+                            // dir is more accurate for normal bullets
+                            // they don't take 1s to travel
+                            dir: direction.truncate(),
+                            //dir: pos_prediction - t_trans.translation.truncate(),
+                        });
+                    }
                     t.can_shoot = false;
                 }
             }
@@ -486,6 +539,7 @@ struct BombBullet {
     start_pos: Vec3,
     start_dir: Vec2,
     end_dir: Vec2,
+    //offset_dir: Vec2,
     timer: Timer,
 }
 
@@ -493,6 +547,9 @@ struct SpawnBombBulletEvent {
     start_pos: Vec2,
     target_dir: Vec2,
 }
+
+#[derive(Component)]
+struct BombTower;
 
 // struct ArcInfo {
 //     // Before spawn
@@ -509,6 +566,27 @@ struct SpawnBombBulletEvent {
 //     InCubic,
 //     OutCubic
 // }
+
+// version 5
+// straight dir to target
+// offset vector
+// perp to the dir on the up side
+// pos = dir + offset
+// offset grows, reaches its peak at 0.4 to 0.5, then decays to 0
+// this makes the arc consistent no matter the angle. It looks the same, just rotated
+// what ease works like that?
+// sin(0) -> sin(PI/2) -> sin(PI) = 0 -> 1 -> 0
+// how do I make the arc front-loaded?
+// if x < 0.5, outcubic(2x), else sin(x). At 0.5, they both = 1.0
+// how to curve the right way
+// take the largest y
+// (x, y) perp -> (-y, x)
+// (3,5)   -> (-5, 3)
+// (-3,5)  -> (-5, -3) -> (5, 3)
+// (3,-5)  -> (5, 3)
+// (-3,-5) -> (5, -3) -> (-5, 3)
+// if y < 0, -perp
+// happens when x < 0
 
 fn spawn_bomb_bullet(
     mut commands: Commands,
@@ -532,9 +610,17 @@ fn spawn_bomb_bullet(
         // tick() lerp function: linear
         // t*t probably works if scale is lower than 5.0
         // tick() lifetime: 1.0s
-        // 
+        //
         // scale: 1.0
         // start_lerp (out_cubic)
+
+        // returns the perp vec
+        // gives the version that points up
+        // let perp_up = if dir.x > 0.0 {
+        //     dir.perp()
+        // } else {
+        //     -dir.perp()
+        // };
 
         // println!(
         //     "dir: {:?}, blend: {:?}, start_dir: {:?}, end_dir: {:?}",
@@ -568,6 +654,7 @@ fn spawn_bomb_bullet(
                 start_pos,
                 start_dir,
                 end_dir,
+                //offset_dir: perp_up.normalize() * 100.0,
                 timer: Timer::from_seconds(1.0, false),
             });
     }
@@ -591,6 +678,18 @@ fn tick_bomb_bullet(
 
         let start_lerp = Vec2::lerp(Vec2::ZERO, bomb.start_dir, t);
         let end_lerp = Vec2::lerp(Vec2::ZERO, bomb.end_dir, t);
+
+        // arc version 5
+        // let lerp_offset = if t < 0.5 {
+        //     let x = 1.0 - (1.0 - 2.0 * t).powi(3);
+        //     Vec2::lerp(Vec2::ZERO, bomb.offset_dir, x)
+        // } else {
+        //     let x = f32::sin(t * 3.14);
+        //     Vec2::lerp(Vec2::ZERO, bomb.offset_dir, x)
+        // };
+        // doesn't really look better.
+        // esp weird when shooting straight up or down.
+        //let pos = start_lerp + lerp_offset;
 
         //let t = t * t;
         // 1 - Math.pow(1 - x, 3);

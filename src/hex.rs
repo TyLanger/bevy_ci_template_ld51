@@ -20,7 +20,8 @@ impl Plugin for HexPlugin {
             .add_system(select_hex)
             .add_system(gather_gold)
             .add_system(info_panel)
-            .add_system(remove_old_panel);
+            .add_system(remove_old_panel)
+            .add_system(test_from_pos);
         // .add_system_set(SystemSet::on_enter(GameState::Playing).with_system(spawn_hexes_circle))
         // .add_system_set(SystemSet::on_update(GameState::Playing).with_system(spawn_hex));
     }
@@ -384,6 +385,16 @@ fn select_hex(
     }
 }
 
+fn test_from_pos(input: Res<Input<KeyCode>>, mouse: Res<MouseWorldPos>) {
+    if input.just_pressed(KeyCode::V) {
+        println!(
+            "Test at pos: {:?}. hex: {:?}",
+            mouse.0,
+            HexCoords::from_position(mouse.0)
+        );
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct HexCoords {
     // u is left-right offset
@@ -410,6 +421,19 @@ impl HexCoords {
             // y = 2*u*h + v*h
             // h = radius * 0.86
         )
+    }
+
+    pub fn from_position(pos: Vec2) -> Self {
+        // seems to work well enough
+        // at least as consistent as selection
+
+        let u = pos.x / (HEX_RADIUS + HEX_RADIUS * 0.5);
+        let v = (pos.y - HEX_SPACING * HEX_RADIUS * u) / (2.0 * HEX_SPACING * HEX_RADIUS);
+        //println!("(u, v) f32: ({:?}, {:?})", u, v);
+        HexCoords {
+            u: u.round() as isize,
+            v: v.round() as isize,
+        }
     }
 
     // pub fn equals(self, other: HexCoords) -> bool {

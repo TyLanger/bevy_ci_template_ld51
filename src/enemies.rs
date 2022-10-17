@@ -38,11 +38,15 @@ impl Plugin for EnemyPlugin {
 #[derive(Component)]
 pub struct Enemy {
     pub has_gold: bool,
+    pub dir: Vec2,
 }
 
 impl Enemy {
     fn new() -> Self {
-        Enemy { has_gold: false }
+        Enemy {
+            has_gold: false,
+            dir: Vec2::ZERO,
+        }
     }
 }
 
@@ -189,11 +193,11 @@ fn spawn_boss(
 }
 
 pub fn move_enemies(
-    mut q_enemies: Query<(&mut Transform, &Enemy), Without<Dead>>,
+    mut q_enemies: Query<(&mut Transform, &mut Enemy), Without<Dead>>,
     q_gold: Query<&Transform, (With<Gold>, Without<Enemy>)>,
     time: Res<Time>,
 ) {
-    for (mut trans, enemy) in q_enemies.iter_mut() {
+    for (mut trans, mut enemy) in q_enemies.iter_mut() {
         let mut dir = Vec3::new(0.0, 0.0, 0.0) - trans.translation;
 
         if enemy.has_gold {
@@ -215,6 +219,7 @@ pub fn move_enemies(
         }
 
         dir.z = 0.0;
+        enemy.dir = dir.truncate();
 
         trans.translation += dir.normalize_or_zero() * 100. * time.delta_seconds();
     }
