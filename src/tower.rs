@@ -38,6 +38,7 @@ impl Plugin for TowerPlugin {
             .add_system(bullet_hit)
             .add_system(spawn_bomb_bullet)
             .add_system(tick_bomb_bullet)
+            .add_system(bomb_tower_build)
             .add_system(bomb_test);
         //.add_system(rotate_sprite);
     }
@@ -47,6 +48,7 @@ impl Plugin for TowerPlugin {
 pub struct Tower {
     pub coords: HexCoords,
     pub refund: u32,
+    shoot_type: ShootType,
     shoot_timer: Timer,
     can_shoot: bool,
     range: f32,
@@ -57,11 +59,20 @@ impl Tower {
         Tower {
             coords,
             refund,
+            shoot_type: ShootType::Bullet,
             shoot_timer: Timer::from_seconds(1.0, true),
             can_shoot: true,
             range: 200.0,
         }
     }
+}
+
+#[derive(PartialEq)]
+enum ShootType {
+    Bullet,
+    Arc,
+    //Pulse,
+    //Laser,
 }
 
 #[derive(Component)]
@@ -79,7 +90,7 @@ struct TowerSprite;
 struct PlaceTowerPreviewEvent {
     //position: Vec3,
     coords: HexCoords,
-    is_bomb: bool,
+    shoot_type: ShootType,
 }
 
 // successfully build
@@ -129,7 +140,7 @@ fn tower_mouse_input(
             ev_place_preview.send(PlaceTowerPreviewEvent {
                 //position: trans.translation,
                 coords: hex.coords,
-                is_bomb: false,
+                shoot_type: ShootType::Bullet,
             });
         }
     }
@@ -139,7 +150,7 @@ fn tower_mouse_input(
             ev_place_preview.send(PlaceTowerPreviewEvent {
                 //position: trans.translation,
                 coords: hex.coords,
-                is_bomb: true,
+                shoot_type: ShootType::Arc,
             });
         }
     }
@@ -201,7 +212,7 @@ fn spawn_tower_preview(
                             .insert(TowerSprite);
                     });
 
-                if ev.is_bomb {
+                if ev.shoot_type == ShootType::Arc {
                     commands.entity(ent).insert(BombTower);
                 }
                 // it is now a Hex, TowerPreview, GoldPile,
@@ -261,6 +272,13 @@ fn preview_paid_for(
     }
 }
 
+// updates the tower to use bomb logic for shooting
+fn bomb_tower_build(mut q_bomb: Query<&mut Tower, (Added<Tower>, With<BombTower>)>) {
+    for mut t in q_bomb.iter_mut() {
+        t.shoot_type = ShootType::Arc;
+    }
+}
+
 fn remove_tower(
     mut commands: Commands,
     mut ev_remove: EventReader<TowerRemoveEvent>,
@@ -270,8 +288,8 @@ fn remove_tower(
         &Children,
         &Transform,
         &Hex,
-        Option<&GoldPile>,
         Option<&TowerPreview>,
+        Option<&GoldPile>,
         Option<&Tower>,
         Option<&BombTower>,
     )>,
@@ -281,37 +299,21 @@ fn remove_tower(
     //mut q_child: Query<&mut Sprite>,
 ) {
     for ev in ev_remove.iter() {
-        for (ent, children, trans, hex, _opt_pile, opt_preview, opt_tower, opt_bomb) in
+        for (ent, children, trans, hex, opt_preview, opt_pile, opt_tower, opt_bomb) in
             q_towers.iter()
         {
             if ev.coords == hex.coords {
-                let mut opt_count = 0;
-                if opt_preview.is_some() {
-                    opt_count += 1;
-                }
-                if opt_tower.is_some() {
-                    opt_count += 1;
-                }
-                if opt_count == 0 {
-                    //println!("No optionals");
+                // this is just a gold pile, not a preview
+                if opt_preview.is_none() && opt_pile.is_some() {
                     break;
                 }
 
-                let mut pile_count = 0;
-
-                // if let Some(pile) = opt_pile {
-                //     pile_count = pile.count;
-
-                // } else
                 if let Some(tower) = opt_tower {
-                    pile_count = tower.refund;
-                }
-                //println!("Pile count: {:?}", pile_count);
-
-                for _ in 0..pile_count {
-                    ev_spawn_gold.send(SpawnGoldEvent {
-                        position: trans.translation,
-                    });
+                    for _ in 0..tower.refund {
+                        ev_spawn_gold.send(SpawnGoldEvent {
+                            position: trans.translation,
+                        });
+                    }
                 }
 
                 for &child in children {
@@ -352,76 +354,76 @@ fn remove_tower(
 }
 
 fn tower_shoot(
-    mut q_towers: Query<(&Transform, &mut Tower, Option<&BombTower>)>,
+    mut q_towers: Query<(&Transform, &mut Tower)>,
     q_enemies: Query<(&Transform, &Enemy)>,
     mut ev_shoot: EventWriter<SpawnBulletEvent>,
     mut ev_bomb: EventWriter<SpawnBombBulletEvent>,
     time: Res<Time>,
 ) {
-    for (t_trans, mut t, bomb) in q_towers.iter_mut() {
-        if t.can_shoot {
-            // can shoot
-            // find a target
-            let direction = q_enemies
-                .iter()
-                .min_by_key(|target_transform| {
-                    FloatOrd(Vec3::distance(
-                        target_transform.0.translation,
-                        t_trans.translation,
-                    ))
-                })
-                .map(|closest_target| closest_target.0.translation - t_trans.translation);
-
-            let pos = q_enemies
-                .iter()
-                .min_by_key(|target_transform| {
-                    FloatOrd(Vec3::distance_squared(
-                        target_transform.0.translation,
-                        t_trans.translation,
-                    ))
-                })
-                .map(|closest| {
-                    // dist travelled in 1s
-                    // bomb travels for 1s
-                    // 100 * 0.0167 * 60 = 100
-                    closest.0.translation.truncate() + closest.1.dir.normalize_or_zero() * 100.
-                });
-            
-            let pos_prediction = pos.unwrap_or(Vec2::ZERO);
-
-            // let mut pos_prediction = Vec2::ZERO;
-            // if let Some((close_t, close_e)) = pos {
-            //     // dist travelled in 1s
-            //     // bomb travels for 1s
-            //     // 100 * 0.0167 * 60 = 100
-            //     pos_prediction = close_t.translation.truncate() + close_e.dir.normalize_or_zero() * 100.;
-            // }
-
-            if let Some(direction) = direction {
-                //println!("Shoot a bullet");
-                // only shoot if within range
-                if direction.length_squared() < (t.range * t.range) {
-                    if bomb.is_some() {
-                        ev_bomb.send(SpawnBombBulletEvent {
-                            start_pos: t_trans.translation.truncate(),
-                            target_dir: pos_prediction - t_trans.translation.truncate(),
-                        });
-                    } else {
-                        ev_shoot.send(SpawnBulletEvent {
-                            pos: t_trans.translation.truncate(),
-                            // dir is more accurate for normal bullets
-                            // they don't take 1s to travel
-                            dir: direction.truncate(),
-                            //dir: pos_prediction - t_trans.translation.truncate(),
-                        });
-                    }
-                    t.can_shoot = false;
-                }
-            }
-        } else {
+    for (t_trans, mut t) in q_towers.iter_mut() {
+        if !t.can_shoot {
             // tick between shots when you can't shoot
             if t.shoot_timer.tick(time.delta()).just_finished() {
                 t.can_shoot = true;
+            }
+        } else {
+            // can shoot
+            // find a target
+
+            match t.shoot_type {
+                ShootType::Bullet => {
+                    let direction = q_enemies
+                        .iter()
+                        .min_by_key(|target_transform| {
+                            FloatOrd(Vec3::distance_squared(
+                                target_transform.0.translation,
+                                t_trans.translation,
+                            ))
+                        })
+                        .map(|closest_target| closest_target.0.translation - t_trans.translation);
+
+                    if let Some(direction) = direction {
+                        // only shoot if within range
+                        if direction.length_squared() < (t.range * t.range) {
+                            ev_shoot.send(SpawnBulletEvent {
+                                pos: t_trans.translation.truncate(),
+                                dir: direction.truncate(),
+                            });
+
+                            t.can_shoot = false;
+                        }
+                    }
+                }
+                ShootType::Arc => {
+                    let pos = q_enemies
+                        .iter()
+                        .min_by_key(|target_transform| {
+                            FloatOrd(Vec3::distance_squared(
+                                target_transform.0.translation,
+                                t_trans.translation,
+                            ))
+                        })
+                        .map(|closest| {
+                            // dist travelled in 1s
+                            // bomb travels for 1s
+                            // speed * frame_time * frames in a second
+                            // 100 * 0.0167 * 60 = 100
+                            closest.0.translation.truncate()
+                                + closest.1.dir.normalize_or_zero() * 100.
+                        });
+
+                    if let Some(pos_prediction) = pos {
+                        let direction = pos_prediction - t_trans.translation.truncate();
+
+                        if direction.length_squared() < (t.range * t.range) {
+                            ev_bomb.send(SpawnBombBulletEvent {
+                                start_pos: t_trans.translation.truncate(),
+                                target_dir: pos_prediction - t_trans.translation.truncate(),
+                            });
+                            t.can_shoot = false;
+                        }
+                    }
+                }
             }
         }
     }

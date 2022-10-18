@@ -4,7 +4,7 @@ use bevy::sprite::Anchor;
 use bevy::utils::Duration;
 
 use crate::boids::Boid;
-use crate::enemies::{Boss, BossCapEvent, Dead, Enemy, SpawnEnemyEvent};
+use crate::enemies::{Boss, BossCapEvent, Dead, Enemy};
 use crate::hex::{Hex, HexCoords, Selection, DEG_TO_RAD};
 use crate::tower::{Tower, TowerPreview};
 use crate::MouseWorldPos;
@@ -128,6 +128,14 @@ pub struct PileRemoveEvent {
     pub coords: HexCoords,
 }
 
+fn setup(mut ev_spawn: EventWriter<PileSpawnEvent>) {
+    // spawn a pile at the center with some starting cash
+    ev_spawn.send(PileSpawnEvent {
+        coords: HexCoords::new(),
+        starting_gold: 11,
+    });
+}
+
 fn gold_collisions(
     mut commands: Commands,
     mut q_gold: Query<(Entity, &mut Transform), (Without<Enemy>, With<Gold>)>,
@@ -227,14 +235,6 @@ fn gold_collisions(
     }
 }
 
-fn setup(mut ev_spawn: EventWriter<PileSpawnEvent>) {
-    // spawn a pile at the center with some starting cash
-    ev_spawn.send(PileSpawnEvent {
-        coords: HexCoords::new(),
-        starting_gold: 11,
-    });
-}
-
 #[derive(Component)]
 struct PileSprite;
 
@@ -304,29 +304,19 @@ fn remove_pile(
                 }
 
                 for &child in children {
-                    //println!("checking children");
-                    if let Ok(child_query) = q_child.get(child) {
-                        // println!("Found an hp bar");
-                        //let (c_ent, c_parent, c_bar) = child_query;
-                        if child_query.2.is_some() || child_query.3.is_some() {
+                    if let Ok((child_ent, _parent, child_hp, child_pile_sprite)) =
+                        q_child.get(child)
+                    {
+                        if child_hp.is_some() || child_pile_sprite.is_some() {
                             // delete if
                             // health bar
                             // or pile sprite
-                            // println!(
-                            //     "Deleting. hp bar: {:?}, pile sprite: {:?}",
-                            //     child_query.2.is_some(),
-                            //     child_query.3.is_some()
-                            // );
-                            commands.entity(child_query.0).despawn_recursive();
+                            commands.entity(child_ent).despawn_recursive();
                         }
                     }
                 }
 
-                commands
-                    .entity(ent)
-                    // didn't work
-                    //.remove_children(children)
-                    .remove::<GoldPile>();
+                commands.entity(ent).remove::<GoldPile>();
             }
         }
     }
@@ -420,24 +410,14 @@ fn pile_input(
     input: Res<Input<KeyCode>>,
     mut ev_spawn: EventWriter<PileSpawnEvent>,
     mut ev_remove: EventWriter<PileRemoveEvent>,
-    q_selection: Query<(&Transform, &Hex), With<Selection>>,
-    mut ev_spawn_gold: EventWriter<SpawnGoldEvent>,
-    mut ev_spawn_enemy: EventWriter<SpawnEnemyEvent>,
+    q_selection: Query<&Hex, With<Selection>>,
 ) {
-    for (_trans, hex) in q_selection.iter() {
+    for hex in q_selection.iter() {
         if input.just_pressed(KeyCode::X) {
             ev_remove.send(PileRemoveEvent { coords: hex.coords });
         }
         if input.just_pressed(KeyCode::G) {
             ev_spawn.send(PileSpawnEvent::new(hex.coords));
-        }
-        if input.just_pressed(KeyCode::T) {
-            ev_spawn_gold.send(SpawnGoldEvent {
-                position: _trans.translation,
-            });
-            ev_spawn_enemy.send(SpawnEnemyEvent {
-                position: _trans.translation.truncate().extend(0.2),
-            });
         }
     }
 }
