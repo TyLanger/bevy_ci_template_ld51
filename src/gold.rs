@@ -354,7 +354,7 @@ fn make_health_bar(mut commands: Commands, q_new: Query<(Entity, Option<&Boss>),
         commands.entity(ent).with_children(|hex| {
             hex.spawn_bundle(SpriteBundle {
                 sprite: Sprite {
-                    color: RED_PINK,
+                    color: GOLD,
                     custom_size: Some(Vec2::new(0.0, 6.0)), // 25.0
                     anchor: Anchor::Center,
                     ..default()

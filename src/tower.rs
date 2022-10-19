@@ -1,9 +1,15 @@
-use bevy::{prelude::*, sprite::collide_aabb::collide, utils::FloatOrd};
+use bevy::{
+    prelude::*,
+    sprite::{collide_aabb::collide, MaterialMesh2dBundle},
+    utils::FloatOrd,
+};
+use bevy_rapier2d::prelude::*;
 
 use crate::{
     enemies::{BossSpawnEvent, Dead, Enemy},
     gold::*,
     hex::*,
+    palette::ORANGE,
     tutorial::AcceptInput,
     MouseWorldPos,
 };
@@ -39,6 +45,7 @@ impl Plugin for TowerPlugin {
             .add_system(spawn_bomb_bullet)
             .add_system(tick_bomb_bullet)
             .add_system(bomb_tower_build)
+            .add_system(tick_bomb_explosion)
             .add_system(bomb_test);
         //.add_system(rotate_sprite);
     }
@@ -579,6 +586,21 @@ struct SpawnBombBulletEvent {
 #[derive(Component)]
 struct BombTower;
 
+#[derive(Component)]
+struct BombExplosion {
+    danger_timer: Timer,
+    lifetime_timer: Timer,
+}
+
+impl BombExplosion {
+    fn new() -> Self {
+        BombExplosion {
+            danger_timer: Timer::from_seconds(0.15, false),
+            lifetime_timer: Timer::from_seconds(0.3, false),
+        }
+    }
+}
+
 // struct ArcInfo {
 //     // Before spawn
 //     arc_scale: f32,
@@ -690,12 +712,24 @@ fn spawn_bomb_bullet(
 
 fn tick_bomb_bullet(
     mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
     mut q_bombs: Query<(Entity, &mut Transform, &mut BombBullet)>,
     time: Res<Time>,
 ) {
     for (ent, mut trans, mut bomb) in q_bombs.iter_mut() {
         if bomb.timer.tick(time.delta()).just_finished() {
             // blow up
+            commands
+                .spawn_bundle(MaterialMesh2dBundle {
+                    mesh: meshes.add(shape::Circle::new(30.0).into()).into(),
+                    material: materials.add(ColorMaterial::from(ORANGE)),
+                    transform: Transform::from_translation(trans.translation),
+                    ..default()
+                })
+                .insert(Collider::ball(30.0))
+                .insert(Sensor)
+                .insert(BombExplosion::new());
             commands.entity(ent).despawn_recursive();
         }
 
@@ -726,6 +760,30 @@ fn tick_bomb_bullet(
         let pos = Vec2::lerp(start_lerp, start_lerp + end_lerp, t);
 
         trans.translation = bomb.start_pos + pos.extend(0.0);
+    }
+}
+
+fn tick_bomb_explosion(
+    mut commands: Commands,
+    rapier_context: Res<RapierContext>,
+    mut q_bombs: Query<(Entity, &mut BombExplosion)>,
+    q_enemies: Query<Entity, With<Enemy>>,
+    time: Res<Time>,
+) {
+    for (bomb_ent, mut bomb) in q_bombs.iter_mut() {
+        for enemy_ent in q_enemies.iter() {
+            if rapier_context.intersection_pair(bomb_ent, enemy_ent) == Some(true) {
+                commands.entity(enemy_ent).insert(Dead);
+            }
+        }
+        // remove the art after 3s
+        if bomb.lifetime_timer.tick(time.delta()).just_finished() {
+            commands.entity(bomb_ent).despawn_recursive();
+        }
+        // remove the danger after 1.5s
+        if bomb.danger_timer.tick(time.delta()).just_finished() {
+            commands.entity(bomb_ent).remove::<Collider>();
+        }
     }
 }
 

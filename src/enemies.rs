@@ -1,5 +1,6 @@
 use bevy::utils::Duration;
 use bevy::{prelude::*, utils::FloatOrd};
+use bevy_rapier2d::prelude::*;
 use rand::prelude::*;
 
 use crate::boids::Boid;
@@ -120,6 +121,9 @@ fn spawn_enemy(mut commands: Commands, mut ev_spawn_enemy: EventReader<SpawnEnem
             })
             .insert(Enemy::new())
             .insert(Boid::new())
+            .insert(RigidBody::Dynamic)
+            .insert(Collider::cuboid(7.5, 7.5))
+            .insert(Sensor)
             .id();
 
         commands

@@ -9,6 +9,7 @@ use bevy::{
     prelude::*,
     render::camera::{RenderTarget, ScalingMode},
 };
+use bevy_rapier2d::prelude::*;
 
 mod boids;
 mod enemies;
@@ -23,6 +24,8 @@ use crate::hex::HexPlugin;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
+        .add_plugin(RapierDebugRenderPlugin::default())
         .add_plugin(boids::BoidsPlugin)
         .add_plugin(enemies::EnemyPlugin)
         .add_plugin(gold::GoldPlugin)
@@ -30,6 +33,10 @@ fn main() {
         .add_plugin(tower::TowerPlugin)
         .add_plugin(tutorial::TutorialPlugin)
         .insert_resource(MouseWorldPos(Vec2::ONE * 10000.0))
+        .insert_resource(RapierConfiguration {
+            gravity: Vec2::ZERO,
+            ..default()
+        })
         .insert_resource(WindowDescriptor {
             width: WIDTH,
             height: HEIGHT,

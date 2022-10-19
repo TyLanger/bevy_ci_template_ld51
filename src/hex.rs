@@ -336,7 +336,7 @@ fn remove_old_panel(
                 }
                 Interaction::None => {
                     // delete it now
-                    println!("Delete the panel");
+                    //println!("Delete the panel");
                     commands.entity(ent).despawn_recursive();
                 }
             }
