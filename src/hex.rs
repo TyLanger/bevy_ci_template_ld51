@@ -3,6 +3,10 @@ use bevy::ui::FocusPolicy;
 //use crate::GameState;
 use bevy::utils::Duration;
 use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
+use std::collections::HashMap;
+// what is std::hashmap
+// vs bevy utils hashmap?
+// are they the same?
 
 use crate::gold::GoldPile;
 use crate::tower::Tower;
@@ -12,6 +16,9 @@ pub struct HexPlugin;
 impl Plugin for HexPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<HexSpawnEvent>()
+            .insert_resource(HexCollection {
+                hexes: HashMap::new(),
+            })
             .add_startup_system(spawn_hexes_circle)
             .add_system(spawn_ring_over_time)
             .add_system(spawn_hex)
@@ -65,6 +72,10 @@ impl Hex {
         }
         false
     }
+}
+
+pub struct HexCollection {
+    pub hexes: HashMap<HexCoords, Entity>,
 }
 
 fn gather_gold(mut q_hexes: Query<&mut Hex>, time: Res<Time>) {
@@ -150,10 +161,11 @@ fn spawn_hex(
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut ev_spawn: EventReader<HexSpawnEvent>,
     asset_server: Res<AssetServer>,
+    mut hex_collect: ResMut<HexCollection>,
 ) {
     for (i, ev) in ev_spawn.iter().enumerate() {
         //println!("HexSpawnEvent");
-        commands
+        let entity = commands
             .spawn_bundle(MaterialMesh2dBundle {
                 mesh: meshes
                     .add(shape::RegularPolygon::new(HEX_RADIUS - HEX_MARGIN, 6).into())
@@ -187,7 +199,10 @@ fn spawn_hex(
                     },
                     ..default()
                 });
-            });
+            })
+            .id();
+
+        hex_collect.hexes.insert(ev.coords, entity);
     }
 }
 
@@ -395,7 +410,7 @@ fn test_from_pos(input: Res<Input<KeyCode>>, mouse: Res<MouseWorldPos>) {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct HexCoords {
     // u is left-right offset
     // pos u is north-east

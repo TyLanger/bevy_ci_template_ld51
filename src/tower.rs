@@ -173,13 +173,28 @@ fn tower_key_input(
 fn spawn_tower_preview(
     mut commands: Commands,
     mut ev_place_preview: EventReader<PlaceTowerPreviewEvent>,
-    q_empty_hexes: Query<(Entity, &Hex), Or<(Without<Tower>, Without<GoldPile>)>>,
+    q_empty_hexes: Query<
+        Entity,
+        (
+            With<Hex>,
+            (Without<TowerPreview>, Without<Tower>, Without<GoldPile>),
+        ),
+    >,
     asset_server: Res<AssetServer>,
     mut cost: ResMut<TowerSpawnCost>,
+    hex_collect: Res<HexCollection>,
 ) {
     for ev in ev_place_preview.iter() {
-        for (ent, hex) in q_empty_hexes.iter() {
-            if ev.coords.eq(&hex.coords) {
+        // use the hashmap of hexes
+        // instead of iterating over all of them.
+        // if let Some
+        // if let Ok
+        // replaces
+        // for
+        // if ==
+        // it's probably faster
+        if let Some(&e) = hex_collect.hexes.get(&ev.coords) {
+            if let Ok(ent) = q_empty_hexes.get(e) {
                 // empty hex exists
                 commands
                     .entity(ent)
@@ -226,16 +241,19 @@ fn spawn_tower_preview(
 fn preview_paid_for(
     mut commands: Commands,
     mut ev_pile_cap: EventReader<PileCapEvent>,
-    q_preview_towers: Query<(Entity, &Children, &Hex, &GoldPile), With<TowerPreview>>,
+    q_preview_towers: Query<(Entity, &Children), (With<Hex>, With<GoldPile>, With<TowerPreview>)>,
     mut q_child: Query<&mut Handle<Image>, With<TowerSprite>>,
     asset_server: Res<AssetServer>,
     mut tower_count: ResMut<TowerCount>,
     mut ev_boss: EventWriter<BossSpawnEvent>,
     mut ev_remove_pile: EventWriter<PileRemoveEvent>,
+    hex_collect: Res<HexCollection>,
 ) {
     for ev in ev_pile_cap.iter() {
-        for (ent, children, hex, _pile) in q_preview_towers.iter() {
-            if ev.coords == hex.coords {
+        if let Some(&e) = hex_collect.hexes.get(&ev.coords) {
+            if let Ok((ent, children)) = q_preview_towers.get(e) {
+                // for (ent, children, hex, _pile) in q_preview_towers.iter() {
+                //     if ev.coords == hex.coords {
                 //println!("Upgrade {:?}", hex.coords);
 
                 // change the color of the preview to a tower color
@@ -273,9 +291,12 @@ fn preview_paid_for(
 }
 
 // updates the tower to use bomb logic for shooting
-fn bomb_tower_build(mut q_bomb: Query<&mut Tower, (Added<Tower>, With<BombTower>)>) {
-    for mut t in q_bomb.iter_mut() {
+fn bomb_tower_build(
+    mut q_bomb: Query<(&mut Tower, &mut GoldSpawner), (Added<Tower>, With<BombTower>)>,
+) {
+    for (mut t, mut spawner) in q_bomb.iter_mut() {
         t.shoot_type = ShootType::Arc;
+        spawner.radius = 2;
     }
 }
 
@@ -296,13 +317,18 @@ fn remove_tower(
     q_sprite: Query<Entity, With<TowerSprite>>,
     mut counter: ResMut<TowerCount>,
     mut cost: ResMut<TowerSpawnCost>,
+    hex_collect: Res<HexCollection>,
     //mut q_child: Query<&mut Sprite>,
 ) {
     for ev in ev_remove.iter() {
-        for (ent, children, trans, hex, opt_preview, opt_pile, opt_tower, opt_bomb) in
-            q_towers.iter()
-        {
-            if ev.coords == hex.coords {
+        if let Some(&e) = hex_collect.hexes.get(&ev.coords) {
+            if let Ok((ent, children, trans, _hex, opt_preview, opt_pile, opt_tower, opt_bomb)) =
+                q_towers.get(e)
+            {
+                // for (ent, children, trans, hex, opt_preview, opt_pile, opt_tower, opt_bomb) in
+                //     q_towers.iter()
+                // {
+                //     if ev.coords == hex.coords {
                 // this is just a gold pile, not a preview
                 if opt_preview.is_none() && opt_pile.is_some() {
                     break;

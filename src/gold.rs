@@ -5,7 +5,7 @@ use bevy::utils::Duration;
 
 use crate::boids::Boid;
 use crate::enemies::{Boss, BossCapEvent, Dead, Enemy};
-use crate::hex::{Hex, HexCoords, Selection, DEG_TO_RAD};
+use crate::hex::{Hex, HexCollection, HexCoords, Selection, DEG_TO_RAD};
 use crate::tower::{Tower, TowerPreview};
 use crate::MouseWorldPos;
 use crate::{palette::*, tower};
@@ -51,6 +51,7 @@ impl Plugin for GoldPlugin {
 #[derive(Component)]
 pub struct GoldSpawner {
     timer: Timer,
+    pub radius: u32,
     //gold_gen: u32,
 }
 
@@ -58,6 +59,7 @@ impl GoldSpawner {
     pub fn new() -> Self {
         GoldSpawner {
             timer: Timer::new(Duration::from_secs_f32(GOLD_SPAWN_TIME), true),
+            radius: 1,
             //gold_gen: 1,
         }
     }
@@ -241,7 +243,14 @@ struct PileSprite;
 fn spawn_pile(
     mut commands: Commands,
     mut ev_spawn: EventReader<PileSpawnEvent>,
-    q_hexes: Query<(Entity, &Hex), Without<TowerPreview>>,
+    q_hexes: Query<
+        Entity,
+        (
+            With<Hex>,
+            (Without<TowerPreview>, Without<Tower>, Without<GoldPile>),
+        ),
+    >,
+    hex_collect: Res<HexCollection>,
 ) {
     // don't run before hexes exist
     // this preserves the event that is send frame ~1
@@ -250,8 +259,10 @@ fn spawn_pile(
     // or maybe frame ~2 if this system happens to run after the hex spawn system
     if !q_hexes.is_empty() {
         for ev in ev_spawn.iter() {
-            for (ent, hex) in q_hexes.iter() {
-                if ev.coords == (hex.coords) {
+            if let Some(&e) = hex_collect.hexes.get(&ev.coords) {
+                if let Ok(ent) = q_hexes.get(e) {
+                    // for (ent, hex) in q_hexes.iter() {
+                    //     if ev.coords == (hex.coords) {
                     commands
                         .entity(ent)
                         .insert(GoldPile {
@@ -291,12 +302,15 @@ fn remove_pile(
     mut commands: Commands,
     mut ev_remove: EventReader<PileRemoveEvent>,
     mut ev_spawn_gold: EventWriter<SpawnGoldEvent>,
-    q_piles: Query<(Entity, &Children, &Transform, &Hex, &GoldPile)>,
+    q_piles: Query<(Entity, &Children, &Transform, &GoldPile), With<Hex>>,
     q_child: Query<(Entity, &Parent, Option<&HealthBar>, Option<&PileSprite>)>,
+    hex_collect: Res<HexCollection>,
 ) {
     for ev in ev_remove.iter() {
-        for (ent, children, trans, hex, pile) in q_piles.iter() {
-            if ev.coords == (hex.coords) {
+        if let Some(&e) = hex_collect.hexes.get(&ev.coords) {
+            if let Ok((ent, children, trans, pile)) = q_piles.get(e) {
+                // for (ent, children, trans, hex, pile) in q_piles.iter() {
+                //     if ev.coords == (hex.coords) {
                 for _ in 0..pile.count {
                     ev_spawn_gold.send(SpawnGoldEvent {
                         position: trans.translation,
@@ -430,15 +444,31 @@ fn generate_gold(
     >,
     mut ev_gold_spawn: EventWriter<SpawnGoldEvent>,
     time: Res<Time>,
+    hex_collect: Res<HexCollection>,
 ) {
     for (hex, mut spawner) in q_gold_spawners.iter_mut() {
         if spawner.timer.tick(time.delta()).just_finished() {
             // spawn around you
-            let neighbours = hex.coords.get_neighbours();
+            let mut neighbours = Vec::new();
+            for i in 1..=spawner.radius {
+                neighbours.append(&mut hex.coords.get_ring(i));
+            }
+            // let mut neighbours = hex.coords.get_ring(1);
+            // let mut outer_ring = hex.coords.get_ring(2);
+            // neighbours.append(&mut outer_ring);
+            // always 18
+            // check if a hex really exists below
+            //println!("neighbours len. expect 18: {:?}", neighbours.len());
             for &n in neighbours.iter() {
+                // can probably replace with
+                // hashmap
+                // q_empty_hexes.get_many(neighbours)
+
                 // check if I can spawn
-                for (trans2, mut hex2) in q_empty_hexes.iter_mut() {
-                    if n == (hex2.coords) {
+                // does a hex at this coordinate exist?
+                if let Some(&e) = hex_collect.hexes.get(&n) {
+                    // if it does exist, does it match this query?
+                    if let Ok((trans2, mut hex2)) = q_empty_hexes.get_mut(e) {
                         // empty space
 
                         // mine and return success
@@ -447,7 +477,6 @@ fn generate_gold(
                                 position: trans2.translation,
                                 //frame: (i*10)+1,
                             });
-                            break;
                         }
                     }
                 }
